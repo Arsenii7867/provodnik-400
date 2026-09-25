@@ -8,7 +8,7 @@ import {
   remainingMs,
   remainingSeconds,
   timerShare,
-} from './timer.js';
+} from '../src/lib/timer.js';
 
 const serverNow = '2026-09-26T10:00:00+00:00';
 const deadline = '2026-09-26T10:00:20+00:00';
