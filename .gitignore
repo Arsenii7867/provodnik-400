@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node и сборка фронта
+node_modules/
+dist/
+
+# Данные и секреты
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Отчёты e2e
+test-results/
+playwright-report/
