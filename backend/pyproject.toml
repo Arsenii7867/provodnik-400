@@ -11,4 +11,3 @@ known-first-party = ["app", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
