@@ -155,3 +155,8 @@ def test_team_analytics_mentor_only(client, login):
     assert other["brigade"]["name"] != "М-01" and other["summary"]
     missing = client.get("/api/analytics/team?brigade_id=999", headers=mentor)
     assert error_code(missing, 404) == "brigade_not_found"
+    huge = client.get(f"/api/analytics/team?brigade_id={2**63}", headers=mentor)
+    assert error_code(huge, 422) == "validation_error"
+    assert (
+        error_code(client.get("/api/analytics/team?brigade_id=0", headers=mentor), 422) == "validation_error"
+    )

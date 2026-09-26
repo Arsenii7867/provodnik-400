@@ -103,42 +103,55 @@ def activate(db, content, now):
     for item in content.challenges:
         if item["id"] in existing:
             continue
-        ends_at = now + timedelta(days=item["duration_days"])
         params = item["condition"].get("params") or {}
-        db.add(
-            Challenge(
-                id=item["id"],
-                title=item["title"],
-                description=item["description"],
-                scenario_ids_json=list(item["scenario_ids"]),
-                condition_json={"type": item["condition"]["type"], "params": dict(params)},
-                bonus_points=item["bonus_points"],
-                starts_at=now,
-                ends_at=ends_at,
-                created_at=now,
-            )
+        challenge = Challenge(
+            id=item["id"],
+            title=item["title"],
+            description=item["description"],
+            scenario_ids_json=list(item["scenario_ids"]),
+            condition_json={"type": item["condition"]["type"], "params": dict(params)},
+            bonus_points=item["bonus_points"],
+            starts_at=now,
+            ends_at=now + timedelta(days=item["duration_days"]),
+            created_at=now,
         )
+        db.add(challenge)
         db.flush()
         if employee_ids is None:
             employee_ids = db.scalars(select(Employee.id).order_by(Employee.id)).all()
         for employee_id in employee_ids:
-            notify_new(db, employee_id, item, ends_at, now)
+            notify_new(db, employee_id, challenge, content.rules, now)
         activated.append(item["id"])
     return activated
 
 
-def notify_new(db, employee_id, item, ends_at, now):
-    bonus = plural(item["bonus_points"], "балл", "балла", "баллов")
+def notify_new(db, employee_id, challenge, rules, now):
+    bonus = plural(challenge.bonus_points, "балл", "балла", "баллов")
+    ttl_days = rules["bonus"]["challenge_bonus_ttl_hours"] // 24
+    lasts = plural(ttl_days, "день", "дня", "дней")
+    payload = {
+        "challenge_id": challenge.id,
+        "bonus_points": challenge.bonus_points,
+        "ends_at": clock.iso(challenge.ends_at),
+    }
     notifications.create(
         db,
         employee_id,
         "challenge",
-        f"Челлендж «{item['title']}» до {date_words(ends_at)}",
-        f"{item['description']} Бонус {bonus}, действует неделю после выполнения.",
-        {"challenge_id": item["id"], "bonus_points": item["bonus_points"], "ends_at": clock.iso(ends_at)},
-        f"challenge_new:{item['id']}:{employee_id}",
+        f"Челлендж «{challenge.title}» до {date_words(challenge.ends_at)}",
+        f"{challenge.description} Бонус {bonus}, действует {lasts} после выполнения.",
+        payload,
+        f"challenge_new:{challenge.id}:{employee_id}",
         now,
     )
+
+
+def announce_active(db, employee_id, rules, now):
+    """Сотрудник, появившийся после активации (например, из HR-системы), получает анонсы
+    идущих челленджей: условия для него те же, бонусы начисляются."""
+    active = select(Challenge).where(Challenge.starts_at <= now, Challenge.ends_at > now)
+    for challenge in db.scalars(active.order_by(Challenge.id)):
+        notify_new(db, employee_id, challenge, rules, now)
 
 
 def runs_in_window(db, employee_id, challenge):

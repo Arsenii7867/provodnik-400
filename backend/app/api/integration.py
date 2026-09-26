@@ -25,7 +25,7 @@ from app.schemas import (
     EventsPage,
     ResultsPage,
 )
-from app.services import action_log, analytics, outbox, scoring
+from app.services import action_log, analytics, challenges, outbox, scoring
 
 router = APIRouter(prefix="/api/integration", tags=["Интеграция"], dependencies=[Depends(require_api_key)])
 PIN_LENGTH = 4
@@ -170,7 +170,7 @@ def actions(code: str, db: Db, after_id: Cursor = 0, limit: Limit = 100):
     response_model=CreatedEmployeeOut,
     status_code=201,
 )
-def create_employee(body: CreateEmployeeRequest, response: Response, db: Db):
+def create_employee(body: CreateEmployeeRequest, request: Request, response: Response, db: Db):
     if db.scalar(select(Employee).where(Employee.code == body.employee_code)) is not None:
         raise ApiError(409, "employee_exists", "Сотрудник с таким кодом уже есть")
     brigade = db.scalar(select(Brigade).where(Brigade.name == body.brigade))
@@ -192,6 +192,7 @@ def create_employee(body: CreateEmployeeRequest, response: Response, db: Db):
     db.add(employee)
     db.flush()
     db.add(Profile(employee_id=employee.id, xp_total=0, updated_at=now))
+    challenges.announce_active(db, employee.id, request.app.state.store.content().rules, now)
     payload = {"employee_code": employee.code, "brigade": brigade.name, "role": employee.role}
     outbox.emit(db, "employee_created", payload | {"created_at": clock.iso(now)}, now)
     action_log.log(

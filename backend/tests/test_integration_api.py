@@ -21,6 +21,11 @@ def test_key_required_401(client, login):
     assert error_code(missing, 401) == "api_key_required"
     wrong = client.get("/api/integration/results", headers={"X-API-Key": "another-key"})
     assert error_code(wrong, 401) == "api_key_invalid"
+    # символ вне ASCII в заголовке это тоже неверный ключ, а не сбой сравнения
+    odd = client.get(
+        "/api/integration/results", headers={"X-API-Key": "demo-integration-k\xe9y".encode("latin-1")}
+    )
+    assert error_code(odd, 401) == "api_key_invalid"
     # токен сотрудника интеграцию не открывает: у HR и LMS свой ключ
     bearer = client.get("/api/integration/competencies", headers=login("VSM-2001"))
     assert error_code(bearer, 401) == "api_key_required"
@@ -176,7 +181,18 @@ def test_create_employee(client, app):
     # новый сотрудник сразу входит своим PIN и видит пустой профиль
     login_body = {"employee_code": "VSM-1777", "pin": payload["pin"]}
     token = client.post("/api/auth/login", json=login_body).json()["token"]
-    profile = client.get("/api/profile", headers={"Authorization": f"Bearer {token}"}).json()
+    fresh = {"Authorization": f"Bearer {token}"}
+    profile = client.get("/api/profile", headers=fresh).json()
+    # идущие челленджи объявлены и новичку: условия для него те же
+    announced = [
+        item for item in client.get("/api/notifications", headers=fresh).json() if item["kind"] == "challenge"
+    ]
+    assert {item["payload"]["challenge_id"] for item in announced} == {
+        "safety_week",
+        "four_steps_week",
+        "inclusion_week",
+    }
+    assert announced[0]["body"].endswith("действует 7 дней после выполнения.")
     # новичок без очков делит ноль с шестью проводниками бригады и стоит последним по коду
     assert profile["xp_total"] == 0 and profile["brigade"] == "С-02"
     assert profile["rank_brigade"] == CONDUCTORS_PER_BRIGADE + 1

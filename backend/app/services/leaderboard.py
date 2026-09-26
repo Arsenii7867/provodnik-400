@@ -9,8 +9,6 @@ from sqlalchemy.orm import selectinload
 
 from app.models import AchievementEarned, BonusPoint, Brigade, Employee, ScenarioRun
 
-SCOPES = ("brigade", "depot", "company")
-
 
 def ratings(db, employee_ids, now):
     """Словарь employee_id -> best_scores_sum, bonus_points, achievements, score для перечисленных."""
