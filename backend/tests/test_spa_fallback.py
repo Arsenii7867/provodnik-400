@@ -49,3 +49,19 @@ def test_without_dist_root_is_404(client):
     response = client.get("/")
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
+
+
+def test_security_headers_on_every_response(spa_client):
+    """Страница приложения идёт с политикой источников, ответы API не кэшируются, и у всех
+    ответов есть заголовки против подмены типа, встраивания во фрейм и утечки referer."""
+    page = spa_client.get("/play/12")
+    assert page.headers["Content-Security-Policy"].startswith("default-src 'self'")
+    api = spa_client.get("/api/health")
+    assert api.headers["Cache-Control"] == "no-store" and "Content-Security-Policy" not in api.headers
+    asset = spa_client.get("/assets/app.js")
+    assert "Content-Security-Policy" not in asset.headers and "Cache-Control" not in asset.headers
+    error = spa_client.get("/api/nothing")
+    for response in (page, api, asset, error):
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["Referrer-Policy"] == "no-referrer"

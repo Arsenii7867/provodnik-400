@@ -19,9 +19,23 @@ CODES_BY_STATUS = {
     404: "not_found",
     405: "method_not_allowed",
     409: "conflict",
+    413: "payload_too_large",
     422: "validation_error",
     429: "rate_limited",
     500: "internal_error",
+}
+# текст фреймворка (Not Found, Method Not Allowed) наружу не уходит: клиент видит русскую фразу по статусу
+MESSAGES_BY_STATUS = {
+    400: "Запрос не удалось разобрать",
+    401: "Нужен вход",
+    403: "Доступ запрещён",
+    404: "Такого адреса нет",
+    405: "Метод для этого адреса не поддерживается",
+    409: "Конфликт состояния",
+    413: "Тело запроса больше допустимого",
+    422: "Запрос не прошёл проверку",
+    429: "Слишком много запросов",
+    500: "Внутренняя ошибка сервера",
 }
 
 
@@ -48,7 +62,7 @@ async def handle_api_error(request: Request, exc: ApiError):
 
 async def handle_http_exception(request: Request, exc: StarletteHTTPException):
     code = CODES_BY_STATUS.get(exc.status_code, "http_error")
-    message = exc.detail if isinstance(exc.detail, str) else "Запрос отклонён"
+    message = MESSAGES_BY_STATUS.get(exc.status_code, "Запрос отклонён")
     return error_response(exc.status_code, code, message, headers=exc.headers)
 
 

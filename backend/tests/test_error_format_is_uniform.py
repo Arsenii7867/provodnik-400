@@ -53,3 +53,26 @@ def test_unexpected_error_is_500_without_traceback(crash_client):
     assert error_of(response)["code"] == "internal_error"
     assert "RuntimeError" not in response.text
     assert "Traceback" not in response.text
+
+
+def test_framework_messages_are_russian(client):
+    """Текст фреймворка (Not Found, Method Not Allowed, ошибка разбора тела) наружу не уходит."""
+    not_found = client.get("/api/nothing")
+    wrong_method = client.post("/api/health")
+    broken_body = client.post(
+        "/api/auth/login", content=b"\xff\xfe{", headers={"Content-Type": "application/json"}
+    )
+    assert broken_body.status_code in (400, 422)
+    for response in (not_found, wrong_method, broken_body):
+        message = error_of(response)["message"]
+        assert message and not any("a" <= letter.lower() <= "z" for letter in message), message
+
+
+def test_oversized_body_is_413_in_uniform_format(client):
+    from app.main import MAX_BODY_BYTES
+
+    response = client.post(
+        "/api/auth/login", content=b"0" * (MAX_BODY_BYTES + 1), headers={"Content-Type": "application/json"}
+    )
+    assert response.status_code == 413
+    assert error_of(response)["code"] == "payload_too_large"

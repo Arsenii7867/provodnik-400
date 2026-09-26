@@ -122,7 +122,9 @@ def test_notification_on_achievement(client, login):
     assert all(item["read_at"] for item in client.get("/api/notifications", headers=headers).json())
     assert client.post("/api/notifications/read-all", headers=headers).json() == {"read": 0}
     foreign = client.post(f"/api/notifications/{four_steps['id']}/read", headers=login("VSM-1002"))
-    assert error_code(foreign, 404) == "notification_not_found"
+    assert error_code(foreign, 403) == "foreign_notification"
+    missing = client.post("/api/notifications/999999/read", headers=headers)
+    assert error_code(missing, 404) == "notification_not_found"
 
 
 def test_xp_and_level_after_run(client, login):

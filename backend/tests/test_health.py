@@ -37,3 +37,18 @@ def test_openapi_export_is_current(client):
     """docs/openapi.json перегенерируется скриптом scripts/export_openapi.py после изменения маршрутов."""
     exported = json.loads(OPENAPI_EXPORT.read_text(encoding="utf-8"))
     assert exported == client.get("/openapi.json").json()
+
+
+def test_head_health_for_liveness_probes(client):
+    response = client.head("/api/health")
+    assert response.status_code == 200 and response.content == b""
+
+
+def test_docs_pages_load_nothing_from_outside(client):
+    """Swagger UI и ReDoc отдаются с файлов сервера: страницы не ссылаются ни на один внешний адрес."""
+    for path, bundle in (("/docs", "swagger-ui-bundle.js"), ("/redoc", "redoc.standalone.js")):
+        page = client.get(path)
+        assert page.status_code == 200 and bundle in page.text, path
+        assert "http://" not in page.text and "https://" not in page.text, path
+    for asset in ("swagger-ui-bundle.js", "swagger-ui.css", "redoc.standalone.js"):
+        assert client.get(f"/static-offline-docs/{asset}").status_code == 200, asset

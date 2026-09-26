@@ -59,8 +59,11 @@ def list_for(db, employee_id, limit):
 
 def mark_read(db, employee_id, notification_id, now):
     row = db.get(Notification, notification_id)
-    if row is None or row.employee_id != employee_id:
+    if row is None:
         raise ApiError(404, "notification_not_found", "Такого уведомления нет")
+    if row.employee_id != employee_id:
+        # чужой объект везде 403, как у прохождений: номера в базе не секрет
+        raise ApiError(403, "foreign_notification", "Это уведомление другого сотрудника")
     if row.read_at is None:
         row.read_at = now
         db.commit()
