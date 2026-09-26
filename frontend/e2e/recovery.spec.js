@@ -99,10 +99,10 @@ test('после потерянного ответа новый класс за�
     expect(created.ok()).toBe(true);
     await route.abort('failed');
   });
-  await card.getByLabel('Класс', { exact: true }).selectOption('standard');
+  await card.getByRole('combobox').selectOption('standard');
   await card.getByRole('button', { name: 'Начать' }).click();
   await expect(page.locator('.error')).toContainText('Сервер недоступен');
-  await card.getByLabel('Класс', { exact: true }).selectOption('business');
+  await card.getByRole('combobox').selectOption('business');
   await card.getByRole('button', { name: 'Начать' }).click();
   await expect(page).toHaveURL(/\/play\/\d+$/);
   await expect(page.locator('.context-bar strong')).toHaveText('Бизнес');
