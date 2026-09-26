@@ -1,0 +1,417 @@
+id: medical_chest_pain
+version: 1
+title: Давит в груди
+summary: Пассажиру бизнес-класса плохо, до станции двенадцать минут, начальник поезда в штабном вагоне.
+source_situations: [19, 28]
+difficulty: 3
+critical: true
+tags: [медицина, эскалация, бизнес]
+competencies: [medical, escalation, empathy, rules]
+role_model: true
+estimated_minutes: 4
+context:
+  service_class: business
+  segment: перегон Тверь, Санкт-Петербург
+  next_station_minutes: 12
+  time_of_day: утро
+  passenger:
+    label: мужчина лет шестидесяти на месте 7В
+    state: бледен, держится за грудь, дышит часто
+  crew_available: [chief, engineer, ptb, pa_announcement, medics_station, driver]
+  escalation_expected_by_step: 1
+  loyalty_of: пассажир на месте 7В и его соседи по ряду
+start:
+  node: intro
+  loyalty: 60
+  safety: 70
+  flags: {}
+nodes:
+  intro:
+    type: dialog
+    text: >-
+      Вы везёте тележку по вагону бизнес-класса. Соседка по ряду 7 машет вам рукой: пассажир на
+      месте 7В побледнел, держится за грудь и дышит часто. До ближайшей станции двенадцать минут,
+      начальник поезда в штабном вагоне.
+    passenger_says: Мне что-то нехорошо, давит в груди.
+    timer:
+      seconds: 20
+      on_expire:
+        next: collapsed
+        effects: {loyalty: -10, safety: -20}
+        competencies: {medical: -2, escalation: -1}
+        debrief:
+          why: Двадцать секунд без действий. При боли в груди каждая минута повышает риск для жизни, а соседи начинают паниковать.
+          better: Сразу сказать «Я рядом, сейчас приглашу начальника поезда и организуем помощь», вызвать по рации и остаться с пассажиром.
+          refs: [sit_19, sto_011_10_4]
+    options:
+      - id: call_chief_stay
+        text: Говорю «Я рядом, сейчас приглашу начальника поезда и организуем помощь», вызываю его по рации и остаюсь.
+        role_step: acknowledge
+        escalation_target: chief
+        effects: {loyalty: 10, safety: 10}
+        competencies: {medical: 2, escalation: 2, empathy: 1}
+        set_flags: {chief_called: true}
+        next: chief_on_way
+        debrief:
+          verdict: best
+          why: Рекомендованная реплика карточки 19. Пассажир слышит, что он не один, начальник поезда вызван любым доступным способом, а неотложная просьба выполняется в приоритетном порядке.
+          refs: [sit_19, sto_011_10_4]
+      - id: run_for_chief
+        text: Бегу в штабной вагон за начальником поезда, пассажира оставляю с соседкой.
+        escalation_target: chief
+        effects: {loyalty: -10, safety: -5}
+        competencies: {escalation: 1, medical: -1, empathy: -1}
+        set_flags: {chief_called: true}
+        delayed:
+          - steps: 2
+            effects: {loyalty: -10}
+            text: Пассажир остался без персонала и испугался ещё сильнее.
+            unless_flags: {returned_to_passenger: true}
+        next: chief_on_way
+        debrief:
+          verdict: ok
+          why: Начальник поезда вызван, но пассажир оставлен один, хотя есть рация и поездная связь. Карточка 19 прямо предупреждает об этой ловушке.
+          better: Вызвать по рации, не покидая пассажира, и сказать ему «Я рядом».
+          refs: [sit_19]
+      - id: give_own_pills
+        text: Достаю из сумки свой нитроглицерин и предлагаю пассажиру.
+        effects: {loyalty: 5, safety: -30}
+        competencies: {medical: -3, rules: -2}
+        next: pills_taken
+        debrief:
+          verdict: bad
+          why: Личные лекарства выдавать нельзя. Реакция пассажира на препарат неизвестна, ответственность ляжет на проводника. Пассажиру кажется, что о нём заботятся, поэтому лояльность чуть выросла, а безопасность обрушилась.
+          better: Сказать «Сожалею, но на борту отсутствуют медикаменты», вызвать начальника поезда и предложить воду.
+          refs: [sit_28, sto_011_10_4]
+      - id: finish_trolley_first
+        text: Говорю соседке «Сейчас закончу с тележкой и подойду» и довожу обслуживание ряда.
+        effects: {loyalty: -10, safety: -15}
+        competencies: {medical: -2, rules: -2, empathy: -1}
+        next: chief_on_way
+        debrief:
+          verdict: bad
+          why: Неотложные просьбы выполняются в приоритетном порядке. Тележка может подождать, сердце пассажира нет.
+          better: Оставить тележку, подойти к пассажиру, вызвать начальника поезда по рации.
+          refs: [sto_011_10_4, sit_19]
+
+  collapsed:
+    type: dialog
+    text: >-
+      Пассажир обмяк в кресле и не отвечает на вопросы. Соседка кричит «Да сделайте же что-нибудь!»,
+      в вагоне встают с мест и снимают на телефоны.
+    options:
+      - id: chief_radio_now
+        text: Вызываю начальника поезда по рации, прошу соседей освободить место у кресла и остаюсь рядом.
+        escalation_target: chief
+        effects: {safety: 10}
+        competencies: {escalation: 2, medical: 1}
+        set_flags: {chief_called: true}
+        next: chief_on_way
+        debrief:
+          verdict: best
+          why: Правильный канал и присутствие рядом, хотя время уже потеряно. Помощь в поезде организуется только через начальника поезда.
+          refs: [sit_19, sto_011_10_6]
+      - id: shake_and_shout
+        text: Трясу пассажира за плечи и громко зову его, чтобы очнулся.
+        effects: {loyalty: -5, safety: -10}
+        competencies: {medical: -2, empathy: -1}
+        next: chief_on_way
+        debrief:
+          verdict: bad
+          why: Действия вне компетенции и паника в вагоне. Пассажиру с болью в груди нужны покой и вызов помощи, а не встряска.
+          better: Не допускать паники, вызвать начальника поезда по рации и оставаться рядом.
+          refs: [sit_19, sto_011_10_4]
+      - id: ask_neighbors_help
+        text: Прошу соседей присмотреть за ним, а сам бегу в штабной вагон за начальником поезда.
+        effects: {loyalty: -5, safety: -5}
+        competencies: {escalation: -1, empathy: -1}
+        next: chief_on_way
+        debrief:
+          verdict: bad
+          why: Начальника поезда вызывают любым доступным способом, а не бегом по составу. Пассажир снова остаётся без персонала.
+          better: Рация или поездная связь, не отходя от пассажира.
+          refs: [sit_19]
+
+  pills_taken:
+    type: event
+    text: >-
+      Пассажир проглотил таблетку. Через минуту ему стало хуже: он побледнел ещё сильнее и жалуется
+      на головокружение. Соседка зовёт вас громче.
+    effects: {safety: -10}
+    set_flags: {pills_given: true}
+    next: chief_on_way
+
+  chief_on_way:
+    type: dialog
+    text: >-
+      Пассажир дышит часто и просит не уходить. Соседка спрашивает, есть ли у вас хоть какие-то
+      лекарства. До станции десять минут.
+    passenger_says: Не уходите, пожалуйста. Может, у вас есть что-нибудь от сердца?
+    options:
+      - id: water_and_calm
+        text: Говорю «Сожалею, на борту медикаментов нет, помощь уже организуем, я рядом. Позвольте предложить воду» и остаюсь у кресла.
+        role_step: rule
+        effects: {loyalty: 10}
+        competencies: {rules: 2, empathy: 2, medical: 1}
+        set_flags: {returned_to_passenger: true}
+        next: help_options
+        debrief:
+          verdict: best
+          why: Реплика карточки 28. Правило про медикаменты названо спокойно, сразу предложена альтернатива, пассажир не один. Вода на борту доступна в любом классе.
+          refs: [sit_28, sto_013_7_1_2, sto_011_10_3]
+      - id: radio_chief_if_not_yet
+        text: Вызываю начальника поезда по рации, не отходя от пассажира.
+        when: {flags_none: [chief_called]}
+        escalation_target: chief
+        effects: {safety: 10}
+        competencies: {escalation: 2}
+        set_flags: {chief_called: true}
+        next: help_options
+        debrief:
+          verdict: ok
+          why: Вызов сделан правильным каналом, но с опозданием. Минуты, пока вы решали сами, уже потеряны.
+          better: Вызывать начальника поезда первым действием, до любых других попыток помочь.
+          refs: [sit_19, sto_011_10_6]
+      - id: ask_neighbors_for_pills
+        text: Спрашиваю соседей, нет ли у кого-нибудь таблетки от сердца для пассажира.
+        effects: {loyalty: 5, safety: -20}
+        competencies: {medical: -2, rules: -1}
+        next: help_options
+        debrief:
+          verdict: bad
+          why: Привлекать пассажиров и коллег к выдаче лекарств так же опасно, как давать своё. Реакция неизвестна, ответственность на проводнике.
+          better: Ответить «Сожалею, но на борту отсутствуют медикаменты», предложить воду и действовать через начальника поезда и медиков.
+          refs: [sit_28]
+      - id: leave_to_meet_chief
+        text: Говорю «Сейчас вернусь» и ухожу в тамбур встречать начальника поезда.
+        effects: {loyalty: -10, safety: -5}
+        competencies: {empathy: -1, escalation: -1}
+        next: help_options
+        debrief:
+          verdict: bad
+          why: Пассажир просил не уходить, а встречать начальника поезда не нужно, он знает вагон и место. Пассажир снова один.
+          better: Остаться рядом, предложить воду, держать связь по рации.
+          refs: [sit_19, sto_011_10_3]
+
+  help_options:
+    type: dialog
+    text: >-
+      До станции восемь минут. Пассажиру не легче: боль не отпускает, лоб в испарине. Соседи ждут
+      ваших действий, кто-то уже снимает происходящее на телефон.
+    passenger_says: Долго ещё? Мне правда плохо.
+    timer:
+      seconds: 30
+      on_expire:
+        next: station_no_medics
+        effects: {loyalty: -10, safety: -15}
+        competencies: {escalation: -2, medical: -1}
+        debrief:
+          why: Медиков на станцию заказывают заранее через начальника поезда. Полминуты без решения, и поезд приходит на платформу, где никто не ждёт.
+          better: Сразу запросить медработника по громкой связи и медиков на ближайшей станции.
+          refs: [sit_28, sit_19]
+    options:
+      - id: pa_medic
+        text: Прошу начальника поезда объявить по громкой связи, что нужен медработник среди пассажиров.
+        when: {flags_all: {chief_called: true}}
+        role_step: solution
+        escalation_target: pa_announcement
+        effects: {loyalty: 5, safety: 15}
+        competencies: {medical: 2, escalation: 1}
+        next: medic_found
+        debrief:
+          verdict: best
+          why: Карточки 19 и 28 прямо предлагают уточнить по громкой связи о медработниках среди пассажиров. Помощь придёт раньше станции.
+          refs: [sit_19, sit_28]
+      - id: request_station_medics
+        text: Прошу начальника поезда вызвать медиков на ближайшую станцию к нашему вагону.
+        when: {flags_all: {chief_called: true}}
+        escalation_target: medics_station
+        effects: {safety: 10}
+        competencies: {escalation: 2, medical: 1}
+        next: station_prep
+        debrief:
+          verdict: ok
+          why: Медики на станции заказаны заранее, это верно. Но восемь минут пассажир остаётся без помощи, хотя в вагоне мог быть врач.
+          better: Сделать и то, и другое. Объявление по громкой связи сейчас, медиков на станцию параллельно.
+          refs: [sit_28, sit_19]
+      - id: request_unscheduled_stop
+        text: Через начальника поезда прошу машиниста передать на станцию, что нужна скорая прямо у вагона.
+        when: {safety_max: 45}
+        escalation_target: driver
+        effects: {safety: 15}
+        competencies: {escalation: 2, medical: 1}
+        set_flags: {chief_called: true}
+        next: station_prep
+        debrief:
+          verdict: best
+          why: Состояние тяжёлое, и встречу скорой у вагона согласуют начальник поезда и машинист. Проводник передаёт факты и не тянет время.
+          refs: [sit_19, sto_011_10_6]
+      - id: hide_pill
+        text: Никому не говорю про таблетку, пусть считают, что пассажиру стало хуже само.
+        when: {flags_all: {pills_given: true}}
+        effects: {safety: -25}
+        competencies: {medical: -3, rules: -2}
+        next: ending_incident_pills
+        debrief:
+          verdict: bad
+          why: Медики будут лечить вслепую, а препарат всплывёт при осмотре. Скрытое нарушение превращается в инцидент с разбором.
+          better: Сообщить начальнику поезда и медикам, какой препарат принял пассажир и когда.
+          refs: [sit_28]
+      - id: radio_chief_late
+        text: Вызываю начальника поезда по рации, о пассажире до сих пор знаете только вы.
+        when: {flags_none: [chief_called]}
+        escalation_target: chief
+        effects: {safety: 10}
+        competencies: {escalation: 1}
+        set_flags: {chief_called: true}
+        next: station_prep
+        debrief:
+          verdict: ok
+          why: Канал правильный, но вызов сделан за восемь минут до станции. Медиков на платформу заказать успеют, врача в вагоне уже не найти.
+          better: Вызывать начальника поезда первым действием.
+          refs: [sit_19, sto_011_10_6]
+      - id: just_wait
+        text: Жду станцию и ничего больше не предпринимаю.
+        effects: {loyalty: -5, safety: -10}
+        competencies: {medical: -1, escalation: -1}
+        next: ending_help_late
+        debrief:
+          verdict: bad
+          why: Минуты до станции уходят впустую. Помощь можно было организовать раньше и без риска для себя.
+          better: Запросить медработника по громкой связи и медиков на станцию через начальника поезда.
+          refs: [sit_19, sto_011_10_4]
+
+  station_no_medics:
+    type: event
+    text: >-
+      Поезд подходит к станции. На платформе только дежурный: заявку на медиков никто не передал,
+      скорую вызывают уже с перрона.
+    next: ending_help_late
+
+  medic_found:
+    type: dialog
+    text: >-
+      После объявления к вам подошла женщина из соседнего вагона, она фельдшер. Она уже у кресла и
+      спрашивает, что случилось и что пассажир принимал.
+    timer:
+      seconds: 30
+      on_expire:
+        next: medic_works_blind
+        effects: {loyalty: -5, safety: -5}
+        competencies: {medical: -1, escalation: -1}
+        debrief:
+          why: Фельдшер ждала сведений и начала помогать вслепую. Сколько длится боль, что принимал пассажир, есть ли лекарства с собой, всё это знали только вы.
+          better: Коротко доложить факты за первые секунды. Время начала, симптомы, что принимал, сколько минут до станции.
+          refs: [sit_19, sit_28]
+    options:
+      - id: brief_medic
+        text: Коротко докладываю. Боль в груди около десяти минут, бледность, частое дыхание, до станции семь минут.
+        effects: {safety: 10}
+        competencies: {medical: 2, escalation: 1}
+        next: station_prep
+        debrief:
+          verdict: best
+          why: Помощь в рамках компетенции проводника это точные сведения тому, кто умеет лечить. Фельдшер не теряет минуты на расспросы.
+          refs: [sit_19, sto_011_10_6]
+      - id: tell_about_pill
+        text: Сообщаю фельдшеру, что пассажир принял мой нитроглицерин, и называю время.
+        when: {flags_all: {pills_given: true}}
+        effects: {loyalty: -5, safety: 10}
+        competencies: {rules: 2, medical: 1}
+        next: station_prep
+        debrief:
+          verdict: ok
+          why: Честность после ошибки. Фельдшер учитывает препарат, риск для пассажира снижается, хотя доверие соседей к проводнику падает.
+          better: Не выдавать лекарство вовсе. Если это случилось, сказать медикам сразу и без утайки.
+          refs: [sit_28]
+      - id: let_medic_handle_and_go
+        text: Оставляю пассажира на фельдшера и ухожу закончить с тележкой.
+        effects: {loyalty: -5}
+        competencies: {empathy: -1}
+        delayed:
+          - steps: 2
+            effects: {loyalty: -10}
+            text: Фельдшер искала вас, чтобы уточнить о лекарствах пассажира, а он спрашивал, куда делся проводник.
+        next: station_prep
+        debrief:
+          verdict: bad
+          why: Проводник остаётся ответственным за пассажира и связь с бригадой. Фельдшеру нужны сведения и помощник, пассажиру знакомое лицо.
+          better: Остаться рядом, отвечать на вопросы фельдшера, держать связь с начальником поезда.
+          refs: [sit_19, sto_011_10_4]
+
+  medic_works_blind:
+    type: event
+    text: >-
+      Фельдшер начала помогать без ваших сведений. Она не знает, сколько длится боль и что пассажир
+      принимал, и переспрашивает соседей.
+    next: station_prep
+
+  station_prep:
+    type: dialog
+    text: >-
+      До станции три минуты. Начальник поезда подтвердил, что скорая будет у вагона. Пассажир в
+      сознании, соседи притихли и смотрят на вас.
+    passenger_says: Спасибо, что не ушли. Меня встретят?
+    options:
+      - id: announce_calm
+        text: Говорю пассажиру и соседям «Благодарю за помощь и спокойствие, на станции нас встретит скорая» и готовлю проход к двери.
+        role_step: assure
+        effects: {loyalty: 10, safety: 5}
+        competencies: {empathy: 2, escalation: 1}
+        next: ending_station_medics
+        debrief:
+          verdict: best
+          why: Заверение по ролевой модели. Пассажир и соседи знают, что будет дальше, проход к двери свободен для медиков.
+          refs: [sit_19, sto_011_10_3]
+      - id: meet_medics_at_door
+        text: Иду к двери встречать медиков, пассажира оставляю с соседкой.
+        effects: {loyalty: -5, safety: 5}
+        competencies: {escalation: 1, empathy: -1}
+        next: ending_station_medics
+        debrief:
+          verdict: ok
+          why: Медиков встретят и без вас, дверь им откроет бригада. Пассажир же снова без проводника в самые тревожные минуты.
+          better: Остаться рядом, а встречу медиков поручить начальнику поезда или соседке.
+          refs: [sit_19, sto_011_10_6]
+      - id: loud_panic
+        text: Громко прошу всех освободить проход, потому что человеку совсем плохо. Соседи вскакивают.
+        effects: {loyalty: -10, safety: -10}
+        competencies: {empathy: -2, medical: -1}
+        next: ending_station_medics
+        debrief:
+          verdict: bad
+          why: Паника в вагоне пугает пассажира и мешает медикам. Карточка 19 требует не допускать паники, а этика персонала требует спокойного тона.
+          better: Спокойно попросить соседей освободить место у кресла и проход, заверить, что помощь уже на станции.
+          refs: [sit_19, sto_011_10_1]
+
+  ending_station_medics:
+    type: ending
+    title: Помощь организована
+    text: >-
+      На станции пассажира встретила бригада скорой. Его увезли в сознании, соседка обещала
+      позвонить его семье. Начальник поезда фиксирует случай в журнале, поезд отправляется по
+      расписанию.
+    debrief:
+      summary: Пассажир дождался медиков не один. Оцените, как быстро вы вызвали начальника поезда, чем занимали минуты до станции и остались ли рядом.
+      refs: [sit_19, sit_28, sto_011_10_4]
+
+  ending_help_late:
+    type: ending
+    title: Помощь пришла поздно
+    text: >-
+      Скорую вызвали уже с перрона, пассажира выносили на носилках при всём вагоне. Соседи
+      спрашивают начальника поезда, почему за десять минут никто ничего не сделал.
+    debrief:
+      summary: Помощь пришла, но минуты в пути прошли впустую. Сюда ведут ветки, где не вызван начальник поезда, не запрошены медики или проводник ждал станцию молча.
+      refs: [sit_19, sit_28, sto_011_10_4]
+
+  ending_incident_pills:
+    type: ending
+    title: Разбор у начальника поезда
+    text: >-
+      На станции медики выяснили, что пассажир принимал нитроглицерин, а бригада об этом не
+      сказала. Начальник поезда открывает служебное расследование, соседи дают пояснения.
+    forced_outcome: incident
+    debrief:
+      summary: Личное лекарство и умолчание о нём это инцидент независимо от того, чем всё закончилось для пассажира. Правило карточки 28 без исключений.
+      refs: [sit_28, sto_011_10_4]
