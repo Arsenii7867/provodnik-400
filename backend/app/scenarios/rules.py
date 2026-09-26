@@ -18,6 +18,7 @@ RULES_KEYS = """
     limits.diverging_min limits.why_min limits.better_min
     analysis.path_limit analysis.many_paths analysis.min_outcomes analysis.min_scale_spread
     analysis.corridor_share
+    analytics.weeks analytics.recommendations
 """.split()
 
 

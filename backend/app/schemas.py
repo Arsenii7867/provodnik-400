@@ -407,6 +407,90 @@ class LeaderboardResponse(BaseModel):
     me: LeaderboardRow | None
 
 
+class RecommendationOut(BaseModel):
+    scenario_id: str
+    title: str
+    competency: str | None
+    reason: str
+
+
+class MistakeOut(BaseModel):
+    competency: str
+    title: str
+    count: int
+    last_scenario_id: str
+
+
+class TempoOut(BaseModel):
+    answered_avg_seconds: float | None
+    timers_answered: int
+    timers_expired: int
+    on_time_share: float | None
+
+
+class EscalationOut(BaseModel):
+    critical_runs: int
+    on_time: int
+    share: float | None
+    needless: int
+
+
+class WeekOut(BaseModel):
+    week_start: str
+    runs: int
+    avg_score: int | None
+    incidents: int
+    xp: int
+
+
+class AnalyticsMeResponse(BaseModel):
+    competencies: list[CompetencyOut]
+    weak: list[str]
+    gaps: list[str]
+    mistakes: list[MistakeOut]
+    recommendations: list[RecommendationOut]
+    tempo: TempoOut
+    escalation: EscalationOut
+    weekly: list[WeekOut]
+    summary: str
+    runs_total: int
+    last_run_at: str | None
+
+
+class BrigadeOut(BaseModel):
+    id: int
+    name: str
+    depot: str
+
+
+class TeamMemberOut(BaseModel):
+    employee_code: str
+    display_name: str
+    xp_total: int
+    runs: int
+    incidents: int
+    weak: list[str]
+    gaps: list[str]
+    last_run_at: str | None
+
+
+class TeamCompetencyOut(BaseModel):
+    code: str
+    title: str
+    mean_mastery: float | None
+    weak_count: int
+    gap_count: int
+
+
+class TeamAnalyticsResponse(BaseModel):
+    brigade: BrigadeOut
+    members: list[TeamMemberOut]
+    competencies: list[TeamCompetencyOut]
+    brigade_gaps: list[str]
+    recommendations: list[RecommendationOut]
+    summary: str
+
+
 class ChallengeProgressOut(BaseModel):
     done: int
     total: int
