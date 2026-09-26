@@ -1713,3 +1713,36 @@ code {
   color: var(--blue-dark);
   font-size: 0.875em;
 }
+
+/* дашборд и каталог */
+
+.challenge {
+  padding: 12px 0;
+  border-top: 1px solid var(--gray-light);
+}
+
+.challenge:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.challenge p {
+  margin: 6px 0;
+}
+
+.challenge-completed .badge {
+  background: var(--ok-light);
+  color: var(--ok);
+}
+
+.scenario-map-link {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.875rem;
+}
+
+.scenario-card-target {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+

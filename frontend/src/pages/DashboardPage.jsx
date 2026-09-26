@@ -3,7 +3,7 @@ import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 
 import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
-import { NOTIFICATION_KINDS, formatDateTime, outcomeTitle, plural } from '../lib/labels.js';
+import { CHALLENGE_STATUSES, NOTIFICATION_KINDS, formatDate, formatDateTime, outcomeTitle, plural } from '../lib/labels.js';
 
 function LevelCard({ profile }) {
   const { level } = profile;
@@ -28,6 +28,7 @@ function LevelCard({ profile }) {
         </li>
         {profile.rank_brigade !== null && <li>место в бригаде {profile.rank_brigade}</li>}
       </ul>
+      <Link to="/profile">Профиль и достижения</Link>
     </section>
   );
 }
@@ -71,6 +72,61 @@ function LastRunCard({ lastRun }) {
   );
 }
 
+function RecommendedCard({ analytics }) {
+  const items = (analytics.data && analytics.data.recommendations) || [];
+  return (
+    <section className="card">
+      <h2>Рекомендовано</h2>
+      {analytics.error && <p className="error">{analytics.error}</p>}
+      {analytics.data && items.length === 0 && <p className="muted">Рекомендаций пока нет.</p>}
+      <ul className="recommendations">
+        {items.map((item) => (
+          <li key={item.scenario_id}>
+            <Link to={`/scenarios#${item.scenario_id}`}>{item.title}</Link>
+            <span className="muted">{item.reason}</span>
+          </li>
+        ))}
+      </ul>
+      {analytics.data && (
+        <Link to="/analytics">Аналитика компетенций</Link>
+      )}
+    </section>
+  );
+}
+
+function ChallengesCard({ challenges }) {
+  const items = challenges.data || [];
+  return (
+    <section className="card">
+      <h2>Челленджи</h2>
+      {challenges.error && <p className="error">{challenges.error}</p>}
+      {challenges.data && items.length === 0 && <p className="muted">Открытых челленджей нет.</p>}
+      <ul className="challenges">
+        {items.map((item) => {
+          const share = item.progress.total ? item.progress.done / item.progress.total : 0;
+          return (
+            <li key={item.id} className={`challenge challenge-${item.status}`}>
+              <div className="card-head">
+                <strong>{item.title}</strong>
+                <span className="badge">{CHALLENGE_STATUSES[item.status] || item.status}</span>
+              </div>
+              <p>{item.description}</p>
+              <div className="xp-bar" role="progressbar" aria-valuenow={item.progress.done} aria-valuemax={item.progress.total}>
+                <div className="xp-bar-fill" style={{ width: `${Math.round(share * 100)}%` }} />
+              </div>
+              <p className="muted">
+                Выполнено {item.progress.done} из {item.progress.total}, окно до {formatDate(item.ends_at)}. Бонус{' '}
+                {plural(item.bonus_points, 'балл', 'балла', 'баллов')} к рейтингу
+                {item.bonus_expires_at ? `, сгорает ${formatDateTime(item.bonus_expires_at)}` : ' со сроком сгорания после выполнения'}.
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function BonusCard({ bonus }) {
   if (!bonus.active_total && bonus.expiring.length === 0) {
     return null;
@@ -84,6 +140,7 @@ function BonusCard({ bonus }) {
           Сгорает {plural(item.points, 'балл', 'балла', 'баллов')} {formatDateTime(item.expires_at)}: {item.reason}.
         </p>
       ))}
+      <Link to="/leaderboard">Лидерборд</Link>
     </section>
   );
 }
@@ -148,6 +205,8 @@ function Notifications({ notifications }) {
 export default function DashboardPage() {
   const { profile, notifications } = useOutletContext();
   const active = useLoad(() => api.get('/api/sessions/active'));
+  const challenges = useLoad(() => api.get('/api/challenges'));
+  const analytics = useLoad(() => api.get('/api/analytics/me'));
 
   if (profile.error) {
     return <p className="error">{profile.error}</p>;
@@ -162,6 +221,8 @@ export default function DashboardPage() {
         {active.data && active.data.active && <ActiveRunCard active={active.data.active} />}
         <LevelCard profile={profile.data} />
         <LastRunCard lastRun={profile.data.last_run} />
+        <RecommendedCard analytics={analytics} />
+        <ChallengesCard challenges={challenges} />
         <BonusCard bonus={profile.data.bonus} />
         <Notifications notifications={notifications} />
       </div>
