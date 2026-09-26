@@ -1,0 +1,33 @@
+flowchart TB
+  subgraph browser["Браузер сотрудника или наставника"]
+    spa["SPA на React (frontend/dist)<br/>экраны рендерят узлы, варианты,<br/>таймер и шкалы из ответов API"]
+    apijs["src/lib/api.js<br/>Bearer-токен, единый формат ошибок,<br/>смещение часов по server_now"]
+    spa --> apijs
+  end
+
+  subgraph server["Сервер FastAPI, один порт 8000 (backend/app)"]
+    static["main.py: раздача собранного фронта,<br/>заголовки безопасности, CORS,<br/>обработчики ошибок"]
+    routers["Роутеры по доменам (app/api)<br/>auth, profile, scenarios, sessions, runs,<br/>achievements, leaderboard, notifications,<br/>challenges, analytics, admin, health"]
+    integration["app/api/integration.py<br/>/api/integration, заголовок X-API-Key"]
+    services["Сервисы (app/services)<br/>session_service, completion, scoring,<br/>achievements, challenges, notifications,<br/>outbox, leaderboard, analytics, action_log"]
+    engine["Движок сценариев (app/scenarios)<br/>engine: чистые функции над состоянием,<br/>validator, analysis, graph"]
+    store["ContentStore (app/scenarios/store.py)<br/>перечитывает YAML по mtime,<br/>сломанный файл не подменяет прежний"]
+  end
+
+  content[("content/*.yaml<br/>сценарии, rules, classes, levels,<br/>competencies, achievements, challenges, refs")]
+  db[("База данных (SQLAlchemy)<br/>SQLite по умолчанию,<br/>PostgreSQL через DATABASE_URL")]
+  hr["HR-система, LMS"]
+  mentor["Наставник"]
+
+  spa -. "index.html, assets" .-> static
+  apijs -- "JSON, Authorization: Bearer" --> routers
+  routers --> services
+  routers --> store
+  services --> engine
+  services --> db
+  services --> store
+  store --> content
+  integration --> services
+  integration --> db
+  hr -- "результаты, события outbox с курсором и ack,<br/>создание сотрудника" --> integration
+  mentor -- "POST /api/admin/scenarios/reload,<br/>GET /api/analytics/team" --> routers

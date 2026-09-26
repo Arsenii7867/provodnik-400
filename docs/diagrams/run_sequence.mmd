@@ -1,0 +1,49 @@
+sequenceDiagram
+  autonumber
+  participant B as Браузер (PlayPage, useServerClock)
+  participant A as FastAPI (app/api/sessions.py)
+  participant S as session_service
+  participant E as engine.py
+  participant C as completion.py
+  participant D as База данных
+  participant H as HR-система, LMS
+
+  B->>A: POST /api/sessions {scenario_id}, заголовок Idempotency-Key
+  A->>S: start_run(now из clock)
+  S->>E: start(scenario, content, now)
+  E-->>S: состояние: узел, шкалы, deadline_at = now + timer.seconds
+  S->>D: INSERT scenario_runs (state_json, deadline_at), action_log
+  A-->>B: 201 узел, варианты, deadline_at, server_now
+  Note over B: offset = server_now минус Date.now(), кольцо таймера считает остаток до deadline_at
+
+  alt выбор до дедлайна
+    B->>A: POST /api/sessions/{run_id}/choose {option_id, step_no}
+    A->>S: choose(now, grace)
+    S->>E: apply_choice: вариант доступен в узле, now <= deadline_at + grace
+    E-->>S: эффекты на обе шкалы, флаги, отложенные последствия, следующий узел
+  else остаток дошёл до нуля (или выбор пришёл после дедлайна)
+    B->>A: POST /api/sessions/{run_id}/expire {step_no}
+    A->>S: expire(now, grace)
+    S->>E: apply_expiry: now >= deadline_at минус grace, иначе 409 too_early
+    E-->>S: ветка on_expire: свои эффекты и узел, куда иначе не попасть
+  end
+
+  S->>D: UPDATE scenario_runs WHERE step_no = прежний (иначе 409 stale_step), INSERT run_steps
+  A-->>B: 200 новое состояние, expired: true при истечении
+
+  opt следующий узел это концовка
+    S->>C: finish_run: исход по порогам, XP по rules.yaml
+    C->>D: profiles.xp_total += xp
+    S->>D: условный UPDATE с исходом, шкалами, score, xp
+    S->>C: complete_run
+    C->>D: employee_competencies (владение по окну прохождений)
+    C->>D: achievements_earned по правилам achievements.yaml, notifications, outbox_events
+    C->>D: bonus_points за выполненный челлендж (expires_at), уведомление level_up
+    A-->>B: 200 status finished, outcome, xp
+    B->>A: GET /api/runs/{run_id}/debrief
+    A-->>B: разбор по шагам с цитатами норм, новые достижения, дельты компетенций
+  end
+
+  H->>A: GET /api/integration/events?after_id (X-API-Key)
+  A-->>H: run_completed, achievement_earned, level_up, challenge_completed
+  H->>A: POST /api/integration/events/ack {ids}

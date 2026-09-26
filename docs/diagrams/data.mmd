@@ -1,0 +1,115 @@
+erDiagram
+  depots ||--o{ brigades : "депо"
+  brigades ||--o{ employees : "бригада"
+  employees ||--|| profiles : "xp_total"
+  employees ||--o{ auth_tokens : "вход"
+  employees ||--o{ scenario_runs : "проходит"
+  scenario_runs ||--o{ run_steps : "ходы"
+  employees ||--o{ employee_competencies : "владение"
+  employees ||--o{ achievements_earned : "получил"
+  scenario_runs o|--o{ achievements_earned : "выдано этим прохождением"
+  employees ||--o{ bonus_points : "бонусы"
+  challenges o|--o{ bonus_points : "за челлендж"
+  employees ||--o{ notifications : "уведомления"
+  employees o|--o{ action_log : "журнал действий"
+
+  depots {
+    int id PK
+    string name UK
+  }
+  brigades {
+    int id PK
+    string name UK
+    int depot_id FK
+  }
+  employees {
+    int id PK
+    string code UK "VSM-1001"
+    string display_name "синтетическое ФИО"
+    string role "conductor или mentor"
+    int brigade_id FK
+    string pin_hash "pbkdf2 с солью"
+    bool is_synthetic
+  }
+  profiles {
+    int employee_id PK
+    int xp_total
+  }
+  auth_tokens {
+    string token_hash UK "sha256 токена"
+    int employee_id FK
+    datetime expires_at
+  }
+  scenario_runs {
+    int id PK
+    int employee_id FK
+    string scenario_id "id файла YAML"
+    string status "active, finished, abandoned"
+    int step_no
+    json state_json "состояние движка"
+    datetime deadline_at "серверный дедлайн"
+    string outcome "incident, acceptable, exemplary"
+    int loyalty_final
+    int safety_final
+    int score
+    int xp_earned
+    json competencies_json "earned и assessed"
+    string idempotency_key
+  }
+  run_steps {
+    int run_id FK
+    int step_no
+    string node_id
+    string option_id
+    bool expired
+    int loyalty_before
+    int loyalty_after
+    int safety_before
+    int safety_after
+    string verdict "best, ok, bad, expired"
+    string escalation_target
+    float answered_in_seconds
+  }
+  employee_competencies {
+    int employee_id PK
+    string competency PK
+    float mastery
+    string status "ok, weak, few_data, gap"
+    int runs_assessed
+  }
+  achievements_earned {
+    int employee_id FK
+    string achievement_id "id из achievements.yaml"
+    int run_id FK
+    datetime earned_at
+  }
+  bonus_points {
+    int employee_id FK
+    int points
+    string challenge_id
+    datetime expires_at "сгорание при чтении"
+  }
+  challenges {
+    string id PK "id из challenges.yaml"
+    json condition_json
+    int bonus_points
+    datetime starts_at
+    datetime ends_at
+  }
+  notifications {
+    int employee_id FK
+    string kind "achievement, level_up, challenge, points_expiring, new_scenario"
+    string dedupe_key UK
+    datetime read_at
+  }
+  outbox_events {
+    int id PK
+    string event_type "run_completed, achievement_earned, level_up, challenge_completed, employee_created"
+    json payload_json
+    datetime delivered_at "ack от LMS"
+  }
+  action_log {
+    int employee_id FK
+    string action "login, run_started, option_chosen, timer_expired, run_finished"
+    json payload_json
+  }
