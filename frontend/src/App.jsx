@@ -5,6 +5,7 @@ import { getToken } from './lib/api.js';
 import CatalogPage from './pages/CatalogPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import DebriefPage from './pages/DebriefPage.jsx';
+import LeaderboardPage from './pages/LeaderboardPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PlayPage from './pages/PlayPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/play/:runId" element={<PlayPage />} />
         <Route path="/debrief/:runId" element={<DebriefPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

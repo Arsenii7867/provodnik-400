@@ -1328,3 +1328,43 @@ th {
 .runs-table td {
   white-space: nowrap;
 }
+
+/* лидерборд */
+
+.scope-title {
+  margin-bottom: 8px;
+}
+
+.board-rank,
+.board-score {
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+
+.board-code {
+  font-size: 0.8125rem;
+}
+
+.board-me td {
+  background: var(--blue-light);
+}
+
+.board-pinned td {
+  border-top: 2px solid var(--blue);
+}
+
+.board-gap td {
+  padding: 4px 10px;
+  color: var(--gray);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.board-you {
+  margin-left: 8px;
+}
+
+.board-bonus {
+  color: var(--warn);
+  font-weight: 600;
+}
