@@ -180,3 +180,200 @@ class RunState(BaseModel):
 
 class ActiveResponse(BaseModel):
     active: RunState | None
+
+
+class LevelOut(BaseModel):
+    id: str
+    title: str
+    threshold: int
+    next_threshold: int | None
+    next_title: str | None
+
+
+class CompetencyOut(BaseModel):
+    code: str
+    title: str
+    mastery: float | None
+    status: str
+    earned: int
+    assessed: int
+    runs_assessed: int
+
+
+class LastRunOut(BaseModel):
+    run_id: int
+    scenario_id: str
+    title: str
+    outcome: str
+    xp: int
+    score: int
+    finished_at: str
+
+
+class ExpiringBonusOut(BaseModel):
+    points: int
+    reason: str
+    expires_at: str
+
+
+class BonusOut(BaseModel):
+    active_total: int
+    expiring: list[ExpiringBonusOut]
+
+
+class ProfileResponse(EmployeeOut):
+    xp_total: int
+    level: LevelOut
+    xp_to_next: int | None
+    competencies: list[CompetencyOut]
+    achievements_count: int
+    achievements_total: int
+    runs_count: int
+    rank_brigade: int | None
+    last_run: LastRunOut | None
+    bonus: BonusOut
+
+
+class RunHistoryItem(BaseModel):
+    run_id: int
+    scenario_id: str
+    title: str
+    status: str
+    outcome: str | None
+    loyalty_final: int | None
+    safety_final: int | None
+    score: int | None
+    xp: int | None
+    started_at: str
+    finished_at: str | None
+    expired_timers: int
+    service_class: str
+
+
+class RefOut(BaseModel):
+    key: str
+    kind: str
+    title: str
+    quote: str
+    phrase: str
+    document: str
+    clause: str
+    number: int | None
+    reconstructed: bool
+
+
+class BestOptionOut(BaseModel):
+    id: str
+    text: str
+
+
+class DelayedAppliedOut(BaseModel):
+    text: str
+    effects: dict
+    cancelled: bool
+
+
+class DebriefStep(BaseModel):
+    step_no: int
+    node_id: str
+    node_text: str
+    passenger_says: str | None
+    option_id: str | None
+    option_text: str | None
+    expired: bool
+    timer_seconds: int | None
+    answered_in_seconds: float | None
+    verdict: str | None
+    why: str | None
+    better: str | None
+    best_option: BestOptionOut | None
+    refs: list[RefOut]
+    loyalty_before: int
+    loyalty_after: int
+    safety_before: int
+    safety_after: int
+    effects: dict
+    competencies: dict
+    delayed_applied: list[DelayedAppliedOut]
+    role_step: str | None
+    escalation_target: str | None
+
+
+class EndingOut(BaseModel):
+    id: str
+    title: str
+    text: str
+    summary: str
+    refs: list[RefOut]
+
+
+class AchievementNewOut(BaseModel):
+    id: str
+    title: str
+    description: str
+
+
+class CompetencyDeltaOut(BaseModel):
+    code: str
+    title: str
+    earned: int
+    assessed: int
+    mastery_before: float | None
+    mastery_after: float | None
+    status: str
+
+
+class XpBreakdownOut(BaseModel):
+    base: int
+    scales: int
+    tempo: int
+    role: int
+
+
+class DebriefResponse(BaseModel):
+    run_id: int
+    scenario_id: str
+    title: str
+    service_class: str
+    outcome: str
+    loyalty_start: int
+    safety_start: int
+    loyalty_final: int
+    safety_final: int
+    xp: int
+    xp_breakdown: XpBreakdownOut
+    score: int
+    is_repeat: bool
+    expired_timers: int
+    timers_answered: int
+    role_chain: RoleChainOut
+    steps: list[DebriefStep]
+    ending: EndingOut
+    achievements_new: list[AchievementNewOut]
+    competencies_delta: list[CompetencyDeltaOut]
+    level_before: LevelOut
+    level_after: LevelOut
+
+
+class AchievementOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    rule_text: str
+    rule_type: str
+    earned: bool
+    earned_at: str | None
+
+
+class NotificationOut(BaseModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    payload: dict
+    created_at: str
+    read_at: str | None
+
+
+class ReadAllResponse(BaseModel):
+    read: int

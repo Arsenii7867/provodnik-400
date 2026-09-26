@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
 from app import __version__, clock
-from app.api import auth, health, scenarios, sessions
+from app.api import achievements, auth, health, notifications, profile, runs, scenarios, sessions
 from app.config import Settings, load_settings
 from app.db import make_engine, prepare_database
 from app.errors import ApiError, install_error_handlers
@@ -57,8 +57,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(profile.router)
     app.include_router(scenarios.router)
     app.include_router(sessions.router)
+    app.include_router(runs.router)
+    app.include_router(achievements.router)
+    app.include_router(notifications.router)
     if (settings.frontend_dist / "index.html").exists():
         mount_frontend(app, settings.frontend_dist)
     return app
