@@ -100,11 +100,12 @@ def list_scenarios(
 @router.get("/filters", summary="Значения фильтров каталога", response_model=FiltersResponse)
 def filters(request: Request, employee: CurrentEmployee):
     content = request.app.state.store.content()
-    limits = content.rules["limits"]["difficulty"]
+    # при сломанных справочниках на первом старте каталог пуст, и фильтры честно пустые, а не 500
+    limits = (content.rules.get("limits") or {}).get("difficulty") or {}
     return {
         "competencies": [{"code": item["code"], "title": item["title"]} for item in content.competencies],
         "classes": [{"code": code, "title": item["title"]} for code, item in content.classes.items()],
-        "difficulties": list(range(limits["min"], limits["max"] + 1)),
+        "difficulties": list(range(limits["min"], limits["max"] + 1)) if limits else [],
     }
 
 

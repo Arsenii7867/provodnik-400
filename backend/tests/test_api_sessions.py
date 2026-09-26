@@ -10,8 +10,9 @@ from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app import clock
+from app import clock, ratelimit
 from app.auth import require_role
+from app.errors import ApiError
 from app.main import create_app
 from app.models import ActionLog, Employee, Profile, RunStep, ScenarioRun
 from app.scenarios.engine import round_half_away
@@ -74,6 +75,18 @@ def test_login_rate_limited(client, settings):
     clock.travel(61)
     allowed = client.post("/api/auth/login", json={"employee_code": "VSM-1001", "pin": settings.demo_pin})
     assert allowed.status_code == 200
+
+
+def test_rate_limit_reserves_slot_before_pin_check(settings):
+    # одновременные попытки не должны проскакивать между проверкой и записью неудачи: слот берётся сразу
+    now = clock.now()
+    tickets = [ratelimit.check("10.0.0.7", now, settings.login_rate_per_minute) for _ in range(10)]
+    with pytest.raises(ApiError) as denied:
+        ratelimit.check("10.0.0.7", now, settings.login_rate_per_minute)
+    assert denied.value.status == 429 and denied.value.headers["Retry-After"] == "60"
+    ratelimit.release("10.0.0.7", tickets[0])
+    assert ratelimit.check("10.0.0.7", now, settings.login_rate_per_minute) == now
+    assert ratelimit.check("10.0.0.8", now, settings.login_rate_per_minute) == now
 
 
 def test_login_me_and_logout(client, login):

@@ -127,19 +127,27 @@ def require_step(run, step_no):
 
 
 def scenario_for(db, store, run, now):
-    scenario = store.scenario(run.scenario_id)
+    """Сценарий и контент одной версии; если текущего узла в файле больше нет, прохождение закрывается."""
+    content = store.content()
+    scenario = content.scenarios.get(run.scenario_id)
     if scenario is None or run.current_node not in scenario["nodes"]:
-        # сценарий изменился под активным прохождением так, что текущего узла больше нет
         close_run(db, run, now)
         raise ApiError(409, "run_not_active", "Сценарий изменился, начните прохождение заново")
-    return scenario
+    return scenario, content
+
+
+def load_state(run, scenario):
+    state = deserialize_state(run.state_json)
+    if state["deadline_at"] is not None and not scenario["nodes"][state["node"]].get("timer"):
+        # таймер сняли живой правкой уже после входа в узел: старый дедлайн больше не действует
+        state["deadline_at"] = None
+    return state
 
 
 def choose(db, store, run, option_id, step_no, now, grace_seconds):
     require_step(run, step_no)
-    scenario = scenario_for(db, store, run, now)
-    content = store.content()
-    state = deserialize_state(run.state_json)
+    scenario, content = scenario_for(db, store, run, now)
+    state = load_state(run, scenario)
     try:
         state, step = engine.apply_choice(scenario, content, state, option_id, now, grace_seconds)
     except engine.EngineError as exc:
@@ -150,9 +158,8 @@ def choose(db, store, run, option_id, step_no, now, grace_seconds):
 
 def expire(db, store, run, step_no, now, grace_seconds):
     require_step(run, step_no)
-    scenario = scenario_for(db, store, run, now)
-    content = store.content()
-    state = deserialize_state(run.state_json)
+    scenario, content = scenario_for(db, store, run, now)
+    state = load_state(run, scenario)
     try:
         state, step = engine.apply_expiry(scenario, content, state, now, grace_seconds)
     except engine.EngineError as exc:
@@ -186,7 +193,9 @@ def commit_step(db, run, scenario, content, state, step, now):
     )
     if result.rowcount != 1:
         db.rollback()
-        raise ApiError(409, "stale_step", "Этот ход уже сделан: обновите состояние прохождения")
+        db.refresh(run)
+        details = {"expected_step_no": run.step_no, "status": run.status}
+        raise ApiError(409, "stale_step", "Этот ход уже сделан: обновите состояние прохождения", details)
     db.add(RunStep(**step_row(run.id, scenario, step, now)))
     action = "timer_expired" if step["expired"] else "option_chosen"
     payload = {"step_no": step["step_no"], "node_id": step["node_id"], "option_id": step["option_id"]}
@@ -288,17 +297,25 @@ def step_row(run_id, scenario, step, now):
 
 
 def close_run(db, run, now):
-    run.status = "abandoned"
-    run.finished_at = now
-    action_log.log(db, run.employee_id, "run_abandoned", "run", run.id, {"node_id": run.current_node}, now)
+    """Перевод в abandoned только из active: финальный ход, успевший раньше, не затирается."""
+    result = db.execute(
+        update(ScenarioRun)
+        .where(ScenarioRun.id == run.id, ScenarioRun.status == "active")
+        .values(status="abandoned", finished_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    closed = result.rowcount == 1
+    if closed:
+        payload = {"node_id": run.current_node}
+        action_log.log(db, run.employee_id, "run_abandoned", "run", run.id, payload, now)
     db.commit()
     db.refresh(run)
+    return closed
 
 
 def abandon(db, run, now):
-    if run.status != "active":
+    if run.status != "active" or not close_run(db, run, now):
         raise ApiError(409, "already_finished", "Прохождение уже завершено", {"status": run.status})
-    close_run(db, run, now)
     return run
 
 
@@ -362,7 +379,9 @@ def state_view(run, store, now, step=None):
     options = []
     if run.status == "active" and node.get("type") == "dialog":
         options = engine.available_options(scenario, state)
-    deadline = run.deadline_at if run.status == "active" else None
+    # дедлайн записан при входе в узел; секунды считаются от него, а не из файла, который могли поправить
+    deadline = run.deadline_at if run.status == "active" and node.get("timer") else None
+    timer_seconds = round((deadline - state["node_entered_at"]).total_seconds()) if deadline else None
     return {
         "run_id": run.id,
         "scenario_id": run.scenario_id,
@@ -378,7 +397,7 @@ def state_view(run, store, now, step=None):
             "text": node.get("text", ""),
             "passenger_says": node.get("passenger_says"),
             "title": node.get("title"),
-            "timer_seconds": engine.timer_seconds(node, state["service_class"]) if deadline else None,
+            "timer_seconds": timer_seconds,
             "options": [option_view(option) for option in options],
         },
         "deadline_at": iso(deadline),

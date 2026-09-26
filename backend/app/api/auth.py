@@ -22,12 +22,12 @@ def login(body: LoginRequest, request: Request, db: Db):
     settings = request.app.state.settings
     address = client_address(request)
     now = clock.now()
-    ratelimit.check(address, now, settings.login_rate_per_minute)
+    ticket = ratelimit.check(address, now, settings.login_rate_per_minute)
     employee = db.scalar(select(Employee).where(Employee.code == body.employee_code))
-    if employee is None or not auth.verify_pin(employee, body.pin):
+    if not auth.verify_login(employee, body.pin):
         # один ответ для неизвестного кода и неверного PIN: существование кода не раскрывается
-        ratelimit.register_failure(address, now)
         raise ApiError(401, "pin_invalid", "Неверный код сотрудника или PIN")
+    ratelimit.release(address, ticket)
     token, expires_at = auth.issue_token(db, employee, now, settings.token_ttl_hours)
     action_log.log(db, employee.id, "login", "employee", employee.code, {}, now)
     db.commit()

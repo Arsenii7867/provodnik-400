@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app import clock
 from app.main import create_app
 from app.scenarios import engine, validator
 
@@ -29,13 +30,48 @@ NEW_OPTION = """\
 """
 
 
+def bump_mtime(path):
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5 * 10**9))
+
+
 def add_option(path):
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     index = next(i for i, line in enumerate(lines) if line.rstrip() == "    options:")
     lines[index + 1 : index + 1] = [NEW_OPTION]
     path.write_text("".join(lines), encoding="utf-8")
-    stat = path.stat()
-    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 5 * 10**9))
+    bump_mtime(path)
+
+
+def test_timer_change_keeps_recorded_deadline(settings, tmp_path):
+    content_dir = tmp_path / "content"
+    shutil.copytree(CONTENT_DIR, content_dir)
+    app = create_app(dataclasses.replace(settings, content_dir=content_dir))
+    with TestClient(app) as client:
+        body = {"employee_code": "VSM-1001", "pin": settings.demo_pin}
+        token = client.post("/api/auth/login", json=body).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        view = client.post("/api/sessions", json={"scenario_id": SCENARIO}, headers=headers).json()
+        assert view["node"]["timer_seconds"] == 20
+
+        path = content_dir / "scenarios" / f"{SCENARIO}.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("seconds: 20", "seconds: 60", 1), encoding="utf-8"
+        )
+        bump_mtime(path)
+        clock.travel(25)
+        # дедлайн записан при входе в узел: новый таймер из файла действует только для следующих прохождений
+        same = client.get(f"/api/sessions/{view['run_id']}", headers=headers).json()
+        assert same["node"]["timer_seconds"] == 20 and same["deadline_at"] == view["deadline_at"]
+        assert client.get("/api/health").json()["content_errors"] == 0
+        late = client.post(
+            f"/api/sessions/{view['run_id']}/choose",
+            json={"option_id": "call_chief_stay", "step_no": 0},
+            headers=headers,
+        )
+        assert late.status_code == 200 and late.json()["expired"] is True
+        fresh = client.post("/api/sessions", json={"scenario_id": SCENARIO}, headers=headers).json()
+        assert fresh["node"]["timer_seconds"] == 60
 
 
 def test_live_change_adds_branch(settings, tmp_path):

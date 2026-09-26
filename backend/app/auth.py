@@ -17,6 +17,7 @@ from app.errors import ApiError
 from app.models import AuthToken, Employee
 
 PBKDF2_ROUNDS = 100_000
+DUMMY_SALT = "no-such-employee"
 bearer = HTTPBearer(auto_error=False)
 Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
 
@@ -31,6 +32,14 @@ def hash_pin(pin: str, salt: str) -> str:
 
 def verify_pin(employee: Employee, pin: str) -> bool:
     return hmac.compare_digest(hash_pin(pin, employee.pin_salt), employee.pin_hash)
+
+
+def verify_login(employee: Employee | None, pin: str) -> bool:
+    """Неизвестный код проверяется столько же, сколько неверный PIN: по времени ответа код не угадать."""
+    if employee is None:
+        hash_pin(pin, DUMMY_SALT)
+        return False
+    return verify_pin(employee, pin)
 
 
 def token_hash(token: str) -> str:

@@ -16,6 +16,9 @@ class UtcDateTime(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return None
+        if value.tzinfo is None:
+            # время без зоны считается UTC (так PyYAML отдаёт даты справочников), а не местным временем машины
+            return value
         return value.astimezone(UTC).replace(tzinfo=None)
 
     def process_result_value(self, value, dialect):
