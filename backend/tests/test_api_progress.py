@@ -15,7 +15,15 @@ from sqlalchemy import select
 
 from app import clock
 from app.main import create_app
-from app.models import AchievementEarned, EmployeeCompetency, Notification, OutboxEvent, Profile, ScenarioRun
+from app.models import (
+    AchievementEarned,
+    EmployeeCompetency,
+    Notification,
+    OutboxEvent,
+    Profile,
+    RunStep,
+    ScenarioRun,
+)
 from app.scenarios.loader import load_content
 from app.services import achievements, notifications, outbox
 from tests.test_api_sessions import (
@@ -310,6 +318,33 @@ def test_concurrent_finish_awards_once(app, settings):
         completed = select(OutboxEvent).where(OutboxEvent.event_type == "run_completed")
         assert len(db.scalars(completed).all()) == 1
         assert len(db.scalars(select(Notification).where(Notification.kind == "level_up")).all()) == 1
+
+
+def test_concurrent_choose_single_step(app, settings):
+    """Двойной клик на промежуточном узле: два одинаковых хода с одним step_no, проходит ровно
+    один, второй получает stale_step, прохождение продвигается на один шаг."""
+    with TestClient(app) as first, TestClient(app) as second:
+        body = {"employee_code": "VSM-1001", "pin": settings.demo_pin}
+        headers = {"Authorization": f"Bearer {first.post('/api/auth/login', json=body).json()['token']}"}
+        view = play(first, headers, BEST_PATH[:1])
+        barrier = threading.Barrier(2)
+
+        def press(client):
+            barrier.wait()
+            return choose(client, headers, view, BEST_PATH[1])
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(press, [first, second]))
+        assert sorted(response.status_code for response in responses) == [200, 409]
+        rejected = next(response for response in responses if response.status_code == 409)
+        assert rejected.json()["error"]["code"] == "stale_step"
+        current = first.get(f"/api/sessions/{view['run_id']}", headers=headers).json()
+        assert current["status"] == "active" and current["step_no"] == 2
+        assert current["node"]["id"] == "help_options"
+    with app.state.session_factory() as db:
+        run = db.get(ScenarioRun, view["run_id"])
+        recorded = db.scalars(select(RunStep).where(RunStep.run_id == run.id)).all()
+        assert run.step_no == 2 and len(recorded) == 2
 
 
 def test_profile_runs_history(client, login):
