@@ -267,28 +267,42 @@ def verdict_of(scenario, node_id, option_id):
     return None
 
 
-def test_trap_options_never_reach_exemplary(scenario, content):
-    """Образцовый исход достижим только без ловушек: путь с вариантом verdict bad обязан упереться
-    в пороги сценария, иначе разбор хвалит за то, за что штрафует."""
-    exemplary = 0
+def exemplary_paths(scenario, content):
+    """Все образцовые пути в родном классе: финальное состояние и ходы к нему."""
+    found = []
     stack = [(engine.start_state(scenario, content), [])]
     while stack:
         state, prefix = stack.pop()
         if state["status"] == "finished":
             if state["outcome"] == "exemplary":
-                exemplary += 1
-                traps = [
-                    (node_id, move)
-                    for node_id, move in prefix
-                    if verdict_of(scenario, node_id, move) == "bad"
-                ]
-                assert traps == [], f"образцовый путь с ловушкой: {[move for _, move in prefix]}"
+                found.append((state, prefix))
             continue
         for move in moves(scenario, state):
             branch = copy.deepcopy(state)
             make_move(scenario, content, branch, move)
             stack.append((branch, prefix + [(state["node"], move)]))
-    assert exemplary > 0, "образцовый исход недостижим в родном классе"
+    assert found, "образцовый исход недостижим в родном классе"
+    return found
+
+
+def test_trap_options_never_reach_exemplary(scenario, content):
+    """Образцовый исход достижим только без ловушек: путь с вариантом verdict bad обязан упереться
+    в пороги сценария, иначе разбор хвалит за то, за что штрафует."""
+    for _, prefix in exemplary_paths(scenario, content):
+        traps = [move for node_id, move in prefix if verdict_of(scenario, node_id, move) == "bad"]
+        assert traps == [], f"образцовый путь с ловушкой {traps}: {[move for _, move in prefix]}"
+
+
+def test_best_path_gives_full_mastery(scenario, content):
+    """Хотя бы один образцовый путь набирает по каждой компетенции всё, что на нём оценивалось:
+    иначе безупречное прохождение показывает в аналитике владение ниже единицы."""
+    codes = scenario["competencies"]
+    full = [
+        prefix
+        for state, prefix in exemplary_paths(scenario, content)
+        if all(state["earned"].get(code, 0) == state["assessed"].get(code, 0) for code in codes)
+    ]
+    assert full, "ни один образцовый путь не даёт полного владения по всем компетенциям"
 
 
 def tokens(text):
