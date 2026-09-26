@@ -94,8 +94,11 @@ def build_graph(scenario, analysis, source_text=None):
     диапазоны финальных шкал, Mermaid и фрагмент YAML стартового узла."""
     edges = edges_of(scenario)
     depth = reachable_nodes(scenario, edges)
-    nodes = [graph_node(node_id, node, depth) for node_id, node in scenario["nodes"].items()]
     own = analysis["own"]
+    endings = own.get("endings") or {}
+    nodes = [
+        graph_node(node_id, node, depth, endings.get(node_id)) for node_id, node in scenario["nodes"].items()
+    ]
     return {
         "nodes": nodes,
         "edges": edges,
@@ -107,7 +110,7 @@ def build_graph(scenario, analysis, source_text=None):
     }
 
 
-def graph_node(node_id, node, depth):
+def graph_node(node_id, node, depth, ending=None):
     text = node.get("title") if node.get("type") == "ending" else node.get("text", "")
     label = " ".join(str(text).split())
     if len(label) > LABEL_LENGTH:
@@ -119,6 +122,8 @@ def graph_node(node_id, node, depth):
         "label": label,
         "timer_seconds": timer.get("seconds"),
         "depth": depth.get(node_id),
+        # у концовки исходы путей через неё из перебора: карта красит её по преобладающему
+        "outcomes": dict((ending or {}).get("outcomes") or {}),
     }
 
 

@@ -57,3 +57,48 @@ export function wrapLabel(text, maxChars, maxLines) {
   kept[maxLines - 1] = `${last.slice(0, Math.max(1, maxChars - 1)).trimEnd()}…`;
   return kept;
 }
+
+export function layerLayout(nodes, box) {
+  // слой это глубина узла от старта; узел без глубины (недостижимый) ставится в последний слой
+  const known = nodes.map((node) => (node.depth === null || node.depth === undefined ? -1 : node.depth));
+  const maxDepth = known.reduce((best, depth) => Math.max(best, depth), 0);
+  const layers = [];
+  nodes.forEach((node, index) => {
+    const depth = known[index] < 0 ? maxDepth + 1 : known[index];
+    while (layers.length <= depth) {
+      layers.push([]);
+    }
+    layers[depth].push(node.id);
+  });
+  const rows = layers.reduce((best, layer) => Math.max(best, layer.length), 0);
+  const stepX = box.width + box.gapX;
+  const stepY = box.height + box.gapY;
+  const positions = {};
+  layers.forEach((layer, depth) => {
+    const offset = ((rows - layer.length) * stepY) / 2;
+    layer.forEach((id, row) => {
+      positions[id] = { x: depth * stepX, y: round(offset + row * stepY) };
+    });
+  });
+  return {
+    positions,
+    layers: layers.length,
+    width: layers.length ? layers.length * stepX - box.gapX : 0,
+    height: rows ? rows * stepY - box.gapY : 0,
+  };
+}
+
+export function edgePath(from, to, box) {
+  // вперёд по слоям: плавная кривая из правого края в левый; в тот же слой или назад:
+  // дуга через правую сторону, чтобы стрелка не легла на узел
+  const startX = from.x + box.width;
+  const startY = from.y + box.height / 2;
+  const endY = to.y + box.height / 2;
+  if (to.x > from.x) {
+    const middle = (startX + to.x) / 2;
+    return `M${startX},${startY} C${middle},${startY} ${middle},${endY} ${to.x},${endY}`;
+  }
+  const bend = startX + box.gapX * 0.6;
+  const endX = to.x + box.width;
+  return `M${startX},${startY} C${bend},${startY} ${bend},${endY} ${endX},${endY}`;
+}

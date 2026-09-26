@@ -38,6 +38,9 @@ def test_graph_nodes_and_expire_edges(built, content):
     assert by_id["intro"]["timer_seconds"] == 20
     assert by_id["ending_station_medics"]["type"] == "ending"
     assert by_id["ending_station_medics"]["label"] == "Скорая у вагона"
+    assert by_id["intro"]["outcomes"] == {}
+    ending_paths = sum(sum(node["outcomes"].values()) for node in built["nodes"] if node["type"] == "ending")
+    assert ending_paths == built["paths"]
     assert built["paths"] == 512
     assert built["scale_ranges"]["safety"]["min"] == 0
 

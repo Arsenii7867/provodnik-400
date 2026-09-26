@@ -309,6 +309,9 @@ export default function DebriefPage() {
         <Link className="button button-ghost" to="/scenarios">
           В каталог
         </Link>
+        <Link className="button button-ghost" to={`/scenarios/${data.scenario_id}/map`}>
+          Как устроен сценарий
+        </Link>
       </div>
     </>
   );

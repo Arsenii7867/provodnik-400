@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useLoad } from '../hooks/useLoad.js';
 import { api, newIdempotencyKey, startSession } from '../lib/api.js';
@@ -83,12 +83,12 @@ function Filters({ filter, setFilter, options }) {
   );
 }
 
-function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy }) {
+function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy, highlighted }) {
   const [serviceClass, setServiceClass] = useState('');
   // один ключ на карточку: повтор «Начать» после сетевой ошибки вернёт уже созданное прохождение
   const [startKey] = useState(newIdempotencyKey);
   return (
-    <article className="scenario-card">
+    <article id={scenario.id} className={highlighted ? 'scenario-card scenario-card-target' : 'scenario-card'}>
       <div className="scenario-head">
         <h2>{scenario.title}</h2>
         <span className={`badge badge-class badge-${scenario.service_class}`}>{scenario.service_class_title}</span>
@@ -136,12 +136,16 @@ function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy }) {
           Начать
         </button>
       </div>
+      <Link className="scenario-map-link" to={`/scenarios/${scenario.id}/map`}>
+        Как устроен сценарий
+      </Link>
     </article>
   );
 }
 
 export default function CatalogPage() {
   const navigate = useNavigate();
+  const { hash } = useLocation();
   const [filter, setFilter] = useState(EMPTY_FILTER);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
@@ -149,6 +153,14 @@ export default function CatalogPage() {
   const query = queryString(filter);
   const scenarios = useLoad(() => api.get(`/api/scenarios${query}`), query);
   const active = useLoad(() => api.get('/api/sessions/active'));
+  // ссылка из рекомендаций ведёт на карточку по id сценария: после загрузки списка подводим к ней
+  const target = hash.slice(1);
+  useEffect(() => {
+    const card = target && scenarios.data ? document.getElementById(target) : null;
+    if (card) {
+      card.scrollIntoView({ block: 'center' });
+    }
+  }, [target, scenarios.data]);
 
   async function start(scenario, serviceClass, startKey) {
     setStarting(true);
@@ -192,6 +204,7 @@ export default function CatalogPage() {
             maxDifficulty={maxDifficulty}
             onStart={start}
             busy={starting}
+            highlighted={scenario.id === target}
           />
         ))}
       </div>

@@ -10,6 +10,7 @@ import LeaderboardPage from './pages/LeaderboardPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PlayPage from './pages/PlayPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import ScenarioMapPage from './pages/ScenarioMapPage.jsx';
 
 function RequireAuth({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -28,6 +29,7 @@ export default function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="/scenarios" element={<CatalogPage />} />
+        <Route path="/scenarios/:id/map" element={<ScenarioMapPage />} />
         <Route path="/play/:runId" element={<PlayPage />} />
         <Route path="/debrief/:runId" element={<DebriefPage />} />
         <Route path="/profile" element={<ProfilePage />} />
