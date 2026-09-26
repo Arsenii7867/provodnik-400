@@ -9,6 +9,7 @@ import { ROLE_STEPS, outcomeTitle, plural, roleStepTitle, signed } from '../lib/
 import { scaleDelta } from '../lib/timer.js';
 
 const EXPIRE_RETRIES = 5;
+const SERVER_WAIT_MS = 3000;
 const EXPIRED_NOTICE = 'Время вышло: решение принято без вас, сервер повёл сценарий по ветке истечения.';
 
 // коды, при которых наше представление о прохождении устарело и его надо перечитать
@@ -159,7 +160,7 @@ export default function PlayPage() {
         await load().catch((inner) => setError(inner.message));
       } else if (err.code === 'too_early') {
         // по часам сервера время ещё есть: свежий server_now поправит смещение, и отсчёт
-        // дойдёт до нуля ещё раз; после нескольких отказов подряд ждём сервер молча
+        // дойдёт до нуля ещё раз; после нескольких отказов подряд повторяем реже и говорим об этом
         const early = earlyReports.current;
         early.count = early.step === stepNo ? early.count + 1 : 1;
         early.step = stepNo;
@@ -168,6 +169,9 @@ export default function PlayPage() {
           expiringStep.current = null;
         } else {
           setServerWaits(true);
+          setTimeout(() => {
+            expiringStep.current = null;
+          }, SERVER_WAIT_MS);
         }
       } else {
         setError(err.message);

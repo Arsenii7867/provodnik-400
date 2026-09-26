@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 
 import { useLoad } from '../hooks/useLoad.js';
@@ -88,17 +89,28 @@ function BonusCard({ bonus }) {
 }
 
 function Notifications({ notifications }) {
+  const [error, setError] = useState('');
   const items = notifications.data || [];
   const unread = items.filter((item) => !item.read_at);
 
   async function markRead(id) {
-    const updated = await api.post(`/api/notifications/${id}/read`);
-    notifications.setData(items.map((item) => (item.id === id ? updated : item)));
+    try {
+      const updated = await api.post(`/api/notifications/${id}/read`);
+      notifications.setData(items.map((item) => (item.id === id ? updated : item)));
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function markAll() {
-    await api.post('/api/notifications/read-all');
-    notifications.reload();
+    try {
+      await api.post('/api/notifications/read-all');
+      notifications.reload();
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   return (
@@ -112,6 +124,7 @@ function Notifications({ notifications }) {
         )}
       </div>
       {notifications.error && <p className="error">{notifications.error}</p>}
+      {error && <p className="error">{error}</p>}
       {items.length === 0 && <p className="muted">Уведомлений пока нет.</p>}
       <ul className="notifications">
         {items.map((item) => (

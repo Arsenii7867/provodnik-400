@@ -41,8 +41,13 @@ export default function Layout() {
           </NavLink>
           <nav className="topnav">
             <NavLink to="/" end>
-              Главная{unread > 0 && <span className="unread-badge">{unread}</span>}
+              Главная
             </NavLink>
+            {unread > 0 && (
+              <span className="unread-badge" title="Непрочитанные уведомления" aria-label={`Непрочитанных уведомлений: ${unread}`}>
+                {unread}
+              </span>
+            )}
             <NavLink to="/scenarios">Сценарии</NavLink>
           </nav>
           <div className="topbar-user">

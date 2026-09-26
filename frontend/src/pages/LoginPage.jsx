@@ -93,7 +93,7 @@ export default function LoginPage() {
               required
             />
           </label>
-          <p className="muted">PIN демо-профилей задаёт переменная DEMO_PIN сервера, по умолчанию 1234.</p>
+          <p className="muted">PIN у демо-профилей общий, по умолчанию 1234.</p>
           {error && <p className="error">{error}</p>}
           <button type="submit" className="button" disabled={busy}>
             {busy ? 'Проверяем' : 'Войти'}

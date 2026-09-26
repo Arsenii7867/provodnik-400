@@ -83,3 +83,17 @@ export const api = {
   get: (path) => request('GET', path),
   post: (path, body = {}, headers) => request('POST', path, body, headers),
 };
+
+// Ключ идемпотентности старта живёт, пока экран не ушёл с места: повтор после сетевой ошибки
+// или второй клик по той же кнопке вернёт то же прохождение, а не прервёт первое.
+export function newIdempotencyKey() {
+  return `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+export function startSession(scenarioId, serviceClass, key) {
+  const body = { scenario_id: scenarioId };
+  if (serviceClass) {
+    body.service_class = serviceClass;
+  }
+  return api.post('/api/sessions', body, { 'Idempotency-Key': key });
+}

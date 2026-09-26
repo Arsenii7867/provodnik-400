@@ -1,6 +1,8 @@
 // Русские подписи к кодам, которые сервер отдаёт как есть: исходы, шаги ролевой модели,
 // роли сотрудников, виды уведомлений. Числа и правила здесь не живут, только слова.
 
+import { parseServerTime } from './timer.js';
+
 export const OUTCOME_TITLES = {
   exemplary: 'Образцово',
   acceptable: 'Приемлемо',
@@ -40,7 +42,7 @@ export function formatDateTime(iso) {
   if (!iso) {
     return '';
   }
-  return new Date(iso).toLocaleString('ru-RU', {
+  return new Date(parseServerTime(iso)).toLocaleString('ru-RU', {
     day: 'numeric',
     month: 'long',
     hour: '2-digit',

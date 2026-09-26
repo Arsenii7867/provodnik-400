@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import ScaleBar from '../components/ScaleBar.jsx';
 import { useLoad } from '../hooks/useLoad.js';
-import { api } from '../lib/api.js';
+import { api, newIdempotencyKey, startSession } from '../lib/api.js';
 import { outcomeTitle, plural } from '../lib/labels.js';
 import { scaleDelta } from '../lib/timer.js';
 
@@ -40,14 +40,19 @@ export default function DebriefPage() {
   const { runId } = useParams();
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const [starting, setStarting] = useState(false);
+  const [startKey] = useState(newIdempotencyKey);
   const debrief = useLoad(() => api.get(`/api/runs/${runId}/debrief`), runId);
 
   async function playAgain() {
+    setStarting(true);
+    setError('');
     try {
-      const run = await api.post('/api/sessions', { scenario_id: debrief.data.scenario_id });
+      const run = await startSession(debrief.data.scenario_id, null, startKey);
       navigate(`/play/${run.run_id}`);
     } catch (err) {
       setError(err.message);
+      setStarting(false);
     }
   }
 
@@ -110,7 +115,7 @@ export default function DebriefPage() {
 
       {error && <p className="error">{error}</p>}
       <div className="actions">
-        <button type="button" className="button" onClick={playAgain}>
+        <button type="button" className="button" disabled={starting} onClick={playAgain}>
           Пройти снова
         </button>
         <Link className="button button-ghost" to="/scenarios">

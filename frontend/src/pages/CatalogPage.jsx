@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useLoad } from '../hooks/useLoad.js';
-import { api } from '../lib/api.js';
+import { api, newIdempotencyKey, startSession } from '../lib/api.js';
 import { outcomeTitle, plural } from '../lib/labels.js';
 
 const EMPTY_FILTER = { competency: '', difficulty: '', service_class: '', critical: false };
@@ -23,11 +23,6 @@ function queryString(filter) {
   }
   const text = query.toString();
   return text ? `?${text}` : '';
-}
-
-// ключ идемпотентности защищает от двойного клика по «Начать»: повтор вернёт то же прохождение
-function startKey(scenarioId) {
-  return `web-${scenarioId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function Filters({ filter, setFilter, options }) {
@@ -90,6 +85,8 @@ function Filters({ filter, setFilter, options }) {
 
 function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy }) {
   const [serviceClass, setServiceClass] = useState('');
+  // один ключ на карточку: повтор «Начать» после сетевой ошибки вернёт уже созданное прохождение
+  const [startKey] = useState(newIdempotencyKey);
   return (
     <article className="scenario-card">
       <div className="scenario-head">
@@ -130,7 +127,12 @@ function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy }) {
             ))}
           </select>
         </label>
-        <button type="button" className="button" disabled={busy} onClick={() => onStart(scenario, serviceClass)}>
+        <button
+          type="button"
+          className="button"
+          disabled={busy}
+          onClick={() => onStart(scenario, serviceClass, startKey)}
+        >
           Начать
         </button>
       </div>
@@ -148,15 +150,11 @@ export default function CatalogPage() {
   const scenarios = useLoad(() => api.get(`/api/scenarios${query}`), query);
   const active = useLoad(() => api.get('/api/sessions/active'));
 
-  async function start(scenario, serviceClass) {
+  async function start(scenario, serviceClass, startKey) {
     setStarting(true);
     setError('');
-    const body = { scenario_id: scenario.id };
-    if (serviceClass) {
-      body.service_class = serviceClass;
-    }
     try {
-      const run = await api.post('/api/sessions', body, { 'Idempotency-Key': startKey(scenario.id) });
+      const run = await startSession(scenario.id, serviceClass, startKey);
       navigate(`/play/${run.run_id}`);
     } catch (err) {
       setError(err.message);
