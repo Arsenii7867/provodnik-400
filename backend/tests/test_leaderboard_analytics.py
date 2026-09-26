@@ -16,7 +16,7 @@ from tests.test_api_sessions import BEST_PATH, error_code, play_best_path, start
 
 CONTENT_DIR = Path(__file__).resolve().parents[2] / "content"
 WHEELCHAIR_BEST = [
-    "greet_ask_preference",
+    "greet_passenger_first",
     "operate_lift_by_rules",
     "seat_and_fold_wheelchair",
     "help_place_luggage",
