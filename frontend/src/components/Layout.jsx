@@ -49,6 +49,7 @@ export default function Layout() {
               </span>
             )}
             <NavLink to="/scenarios">Сценарии</NavLink>
+            <NavLink to="/profile">Профиль</NavLink>
           </nav>
           <div className="topbar-user">
             {employee && (

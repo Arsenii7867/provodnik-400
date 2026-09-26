@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage.jsx';
 import DebriefPage from './pages/DebriefPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import PlayPage from './pages/PlayPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 
 function RequireAuth({ children }) {
   return getToken() ? children : <Navigate to="/login" replace />;
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/scenarios" element={<CatalogPage />} />
         <Route path="/play/:runId" element={<PlayPage />} />
         <Route path="/debrief/:runId" element={<DebriefPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

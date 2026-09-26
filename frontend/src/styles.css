@@ -1234,3 +1234,97 @@ th {
   border-left: 3px solid var(--blue);
   background: var(--blue-light);
 }
+
+/* профиль */
+
+.competency-list,
+.achievements,
+.challenges {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.competency-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--gray-light);
+}
+
+.competency-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.competency-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+}
+
+.competency-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--blue-dark);
+}
+
+.competency-value {
+  font-weight: 700;
+}
+
+.competency-status {
+  font-size: 0.8125rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+.status-weak .competency-status {
+  background: var(--danger-light);
+}
+
+.status-gap .competency-status {
+  background: var(--warn-light);
+}
+
+.status-ok .competency-status {
+  background: var(--ok-light);
+}
+
+.competency-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.875rem;
+}
+
+.achievements {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.achievement {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--gray-light);
+}
+
+.achievement-earned {
+  border-color: var(--ok);
+  background: var(--ok-light);
+}
+
+.achievement-locked {
+  color: var(--gray);
+}
+
+.achievement-rule {
+  font-size: 0.875rem;
+}
+
+.runs-table td {
+  white-space: nowrap;
+}
