@@ -1,17 +1,19 @@
-"""Прохождение сценария на сервере: старт, выбор, истечение, отказ и итог. Состояние движка
-лежит в scenario_runs.state_json, каждый ход пишется в run_steps и action_log. Переход шага
-делается условным UPDATE по step_no, поэтому двойной клик и гонка «истечение плюс выбор» дают
-409, а не второй ход. Время приходит аргументом now из clock.now()."""
+"""Прохождение сценария на сервере: старт, выбор, истечение и отказ; итог и всё, что он
+запускает, считает completion.py в той же транзакции. Состояние движка лежит в
+scenario_runs.state_json, каждый ход пишется в run_steps и action_log. Переход шага делается
+условным UPDATE по step_no, поэтому двойной клик и гонка «истечение плюс выбор» дают 409, а не
+второй ход. Время приходит аргументом now из clock.now()."""
 
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
+from app import clock
 from app.errors import ApiError
-from app.models import Profile, RunStep, ScenarioRun
+from app.models import RunStep, ScenarioRun
 from app.scenarios import engine
-from app.services import action_log, scoring
+from app.services import action_log, completion
 
 TIME_FIELDS = ("node_entered_at", "deadline_at")
 
@@ -28,10 +30,6 @@ def deserialize_state(data):
     for name in TIME_FIELDS:
         state[name] = datetime.fromisoformat(data[name]) if data[name] else None
     return state
-
-
-def iso(moment):
-    return moment.isoformat(timespec="milliseconds") if moment else None
 
 
 def engine_error(exc):
@@ -179,8 +177,9 @@ def commit_step(db, run, scenario, content, state, step, now):
         "expired_timers": state["expired_timers"],
         "timers_answered": state["timers_answered"],
     }
-    if state["status"] == "finished":
-        values.update(finish_run(db, run, content, state, now))
+    finished = state["status"] == "finished"
+    if finished:
+        values.update(completion.finish_run(db, run, content, state, now))
     result = db.execute(
         update(ScenarioRun)
         .where(
@@ -200,60 +199,15 @@ def commit_step(db, run, scenario, content, state, step, now):
     action = "timer_expired" if step["expired"] else "option_chosen"
     payload = {"step_no": step["step_no"], "node_id": step["node_id"], "option_id": step["option_id"]}
     action_log.log(db, run.employee_id, action, "run", run.id, payload, now)
-    if state["status"] == "finished":
-        payload = {"outcome": state["outcome"], "xp": values["xp_earned"], "score": values["score"]}
-        action_log.log(db, run.employee_id, "run_finished", "run", run.id, payload, now)
+    if finished:
+        # итог уже записан условным UPDATE, поэтому история и шаги ниже видят это прохождение завершённым
+        completion.complete_run(db, run, scenario, content, values, now)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise ApiError(409, "stale_step", "Этот ход уже записан: обновите состояние прохождения") from None
     db.refresh(run)
-
-
-def finish_run(db, run, content, state, now):
-    """Итог прохождения: исход, финальные шкалы, очки и XP по rules.yaml; XP сразу прибавляется
-    к профилю, повтор сценария даёт долю очков."""
-    role_complete = engine.role_chain_complete(state["role_chain"])
-    breakdown = scoring.xp_breakdown(
-        state["outcome"],
-        state["loyalty"],
-        state["safety"],
-        state["timers_answered"],
-        role_complete,
-        content.rules,
-    )
-    score = scoring.score_of(breakdown)
-    earlier = db.scalar(
-        select(func.count())
-        .select_from(ScenarioRun)
-        .where(
-            ScenarioRun.employee_id == run.employee_id,
-            ScenarioRun.scenario_id == run.scenario_id,
-            ScenarioRun.status == "finished",
-        )
-    )
-    xp = scoring.xp_for(score, earlier > 0, content.rules)
-    db.execute(
-        update(Profile)
-        .where(Profile.employee_id == run.employee_id)
-        .values(xp_total=Profile.xp_total + xp, updated_at=now)
-    )
-    competencies = {
-        code: {"earned": state["earned"].get(code, 0), "assessed": assessed}
-        for code, assessed in state["assessed"].items()
-    }
-    return {
-        "outcome": state["outcome"],
-        "loyalty_final": state["loyalty"],
-        "safety_final": state["safety"],
-        "score": score,
-        "xp_earned": xp,
-        "xp_breakdown_json": breakdown,
-        "competencies_json": competencies,
-        "role_complete": role_complete,
-        "finished_at": now,
-    }
 
 
 def action_source(scenario, node_id, option_id, expired):
@@ -400,8 +354,8 @@ def state_view(run, store, now, step=None):
             "timer_seconds": timer_seconds,
             "options": [option_view(option) for option in options],
         },
-        "deadline_at": iso(deadline),
-        "server_now": iso(now),
+        "deadline_at": clock.iso(deadline),
+        "server_now": clock.iso(now),
         "expired": bool(step and step["expired"]),
         "last_step": last_step_view(scenario, state),
         "context": context_view(scenario, content, state["service_class"]),
