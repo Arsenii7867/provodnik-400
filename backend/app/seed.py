@@ -59,8 +59,13 @@ STRONG_SKILL = 0.9
 STRONG_CLASS = "first"
 SKILLS = (0.35, 0.55, 0.75, 0.9)
 # соседи демо-проводника по бригаде расставлены лесенкой умения и числа прохождений, чтобы после
-# демонстрации его место в бригаде заметно менялось
-DEMO_BRIGADE_LADDER = ((0.35, 1), (0.55, 2), (0.75, 3), (0.9, 4))
+# демонстрации его место в бригаде менялось при любом наборе сценариев: двое слабее него, один с
+# двумя безупречными прохождениями и один с четырьмя. Безупречные прохождения берутся из
+# немедицинских сценариев: у них один таймер и потолок 175 очков, поэтому два таких прохождения
+# дают от 322 до 350, а это больше 120 баллов бонусов демо-проводника с его провалами по медицине
+# и меньше того же плюс образцовое демо-прохождение
+DEMO_BRIGADE_LADDER = ((0.35, 1), (0.55, 2), (1.0, 2), (1.0, 4))
+FLAWLESS_SKILL = 1.0
 HISTORY_DAYS = 42
 RUNS_MIN, RUNS_MAX = 2, 5
 EXPIRE_FACTOR = 0.3
@@ -188,7 +193,10 @@ def plan_history(rng, employees, content):
             picks = [(sid, STRONG_SKILL, STRONG_CLASS, None) for sid in scenario_ids]
         elif employee.brigade.name == DEMO_ACCOUNTS[0]["brigade"]:
             skill, count = next(ladder)
-            chosen = rng.sample(scenario_ids, min(count, len(scenario_ids)))
+            pool = scenario_ids
+            if skill >= FLAWLESS_SKILL:
+                pool = [sid for sid in scenario_ids if not is_medical(content, sid)]
+            chosen = rng.sample(pool, min(count, len(pool)))
             picks = [(sid, skill, None, None) for sid in chosen]
         else:
             skill = rng.choice(SKILLS)
