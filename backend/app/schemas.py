@@ -106,7 +106,7 @@ class GraphResponse(BaseModel):
 
 class StartSessionRequest(BaseModel):
     scenario_id: str = Field(min_length=1, max_length=64)
-    service_class: str | None = None
+    service_class: str | None = Field(default=None, max_length=32)
 
 
 class ChooseRequest(BaseModel):

@@ -46,11 +46,26 @@ def test_env_overrides_and_relative_paths(monkeypatch):
 
 def test_prod_requires_integration_key(monkeypatch):
     monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("DEMO_PIN", "7391")
     monkeypatch.delenv("INTEGRATION_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         load_settings()
     monkeypatch.setenv("INTEGRATION_API_KEY", "секрет-из-окружения")
     assert load_settings().integration_api_key == "секрет-из-окружения"
+
+
+def test_prod_requires_custom_demo_pin(monkeypatch):
+    """Сид в prod не должен молча создавать демо-аккаунты с PIN из README."""
+    monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("INTEGRATION_API_KEY", "секрет-из-окружения")
+    monkeypatch.delenv("DEMO_PIN", raising=False)
+    with pytest.raises(RuntimeError):
+        load_settings()
+    monkeypatch.setenv("DEMO_PIN", "1234")
+    with pytest.raises(RuntimeError):
+        load_settings()
+    monkeypatch.setenv("DEMO_PIN", "7391")
+    assert load_settings().demo_pin == "7391"
 
 
 def test_negative_grace_rejected(monkeypatch):

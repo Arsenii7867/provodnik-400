@@ -47,6 +47,8 @@ def token_hash(token: str) -> str:
 
 
 def issue_token(db, employee: Employee, now, ttl_hours: int):
+    # истёкшие токены никому не нужны: таблица не растёт с каждым входом
+    db.execute(delete(AuthToken).where(AuthToken.expires_at <= now))
     token = secrets.token_urlsafe(32)
     expires_at = now + timedelta(hours=ttl_hours)
     hashed = token_hash(token)

@@ -61,7 +61,7 @@ def dump(path):
     with sessionmaker(engine)() as db:
         codes = dict(db.execute(select(Employee.id, Employee.code)).all())
         people = sorted(
-            (row.code, row.display_name, row.role, row.brigade.name, row.pin_salt, row.pin_hash)
+            (row.code, row.display_name, row.role, row.brigade.name, row.pin_salt, row.pin_hash, row.is_synthetic)
             for row in db.scalars(select(Employee))
         )
         runs = sorted(
@@ -158,6 +158,7 @@ def test_no_pii(history_template):
         assert not name.startswith("Иванов"), name
     codes = [code for code, *_ in snapshot["people"]]
     assert len(set(codes)) == 38 and all(re.fullmatch(r"VSM-\d{4}", code) for code in codes)
+    assert all(person[-1] is True for person in snapshot["people"]), "в сиде есть сотрудник без метки синтетики"
 
 
 def test_demo_accounts_profiles(history_client):

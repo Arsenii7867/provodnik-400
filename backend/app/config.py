@@ -42,6 +42,10 @@ def load_settings() -> Settings:
     api_key = env.get("INTEGRATION_API_KEY", "" if app_env == "prod" else defaults.integration_api_key)
     if app_env == "prod" and not api_key:
         raise RuntimeError("В prod задайте INTEGRATION_API_KEY: демо-ключ там не действует")
+    demo_pin = env.get("DEMO_PIN", defaults.demo_pin)
+    if app_env == "prod" and demo_pin == defaults.demo_pin:
+        # иначе сид молча создал бы в prod демо-аккаунты с PIN, который напечатан в README
+        raise RuntimeError("В prod задайте свой DEMO_PIN: значение по умолчанию известно всем")
     grace = float(env.get("TIMER_GRACE_SECONDS", defaults.timer_grace_seconds))
     if grace < 0:
         # отрицательный допуск перевернул бы окно: поздний выбор считался бы ранним истечением
@@ -61,5 +65,5 @@ def load_settings() -> Settings:
         token_ttl_hours=int(env.get("TOKEN_TTL_HOURS", defaults.token_ttl_hours)),
         timer_grace_seconds=grace,
         login_rate_per_minute=int(env.get("LOGIN_RATE_PER_MINUTE", defaults.login_rate_per_minute)),
-        demo_pin=env.get("DEMO_PIN", defaults.demo_pin),
+        demo_pin=demo_pin,
     )

@@ -1,8 +1,10 @@
-"""Лимит попыток входа: скользящее окно в памяти по адресу клиента. Попытка резервирует слот
-до проверки PIN и освобождает его при удачном входе, поэтому одновременные запросы не
-проскакивают между проверкой и записью неудачи, а зрители демо за одним адресом не мешают друг
-другу удачными входами. Сервер работает одним процессом, поэтому память, а не таблица."""
+"""Лимит попыток входа: скользящее окно в памяти по ключу (адрес клиента и код сотрудника).
+Попытка резервирует слот до проверки PIN и освобождает его при удачном входе, поэтому
+одновременные запросы не проскакивают между проверкой и записью неудачи, а зрители демо за одним
+адресом не мешают друг другу удачными входами. Сервер работает одним процессом, поэтому память,
+а не таблица."""
 
+import logging
 import math
 import threading
 from collections import deque
@@ -10,6 +12,7 @@ from datetime import timedelta
 
 from app.errors import ApiError
 
+logger = logging.getLogger("provodnik")
 WINDOW = timedelta(minutes=1)
 _attempts = {}
 _lock = threading.Lock()
@@ -23,6 +26,7 @@ def check(key: str, now, limit: int):
             attempts.append(now)
             return now
         retry_after = max(1, math.ceil((attempts[0] + WINDOW - now).total_seconds()))
+    logger.warning("лимит входа исчерпан: ключ %r", key)
     raise ApiError(
         429,
         "rate_limited",

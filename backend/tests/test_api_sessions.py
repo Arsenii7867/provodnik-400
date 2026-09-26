@@ -8,13 +8,13 @@ from typing import Annotated
 import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import clock, ratelimit
 from app.auth import require_role
 from app.errors import ApiError
 from app.main import create_app
-from app.models import ActionLog, Employee, Profile, RunStep, ScenarioRun
+from app.models import ActionLog, AuthToken, Employee, Profile, RunStep, ScenarioRun
 from app.scenarios.engine import round_half_away
 
 SCENARIO = "medical_chest_pain"
@@ -87,6 +87,46 @@ def test_rate_limit_reserves_slot_before_pin_check(settings):
     ratelimit.release("10.0.0.7", tickets[0])
     assert ratelimit.check("10.0.0.7", now, settings.login_rate_per_minute) == now
     assert ratelimit.check("10.0.0.8", now, settings.login_rate_per_minute) == now
+
+
+def test_login_limit_per_employee_code(app, settings):
+    """Подбор PIN одного сотрудника с разных адресов упирается в лимит по коду."""
+    body = {"employee_code": "VSM-1001", "pin": "0000"}
+    for index in range(settings.login_rate_per_minute):
+        probe = TestClient(app, client=(f"10.20.{index}.1", 40000))
+        assert probe.post("/api/auth/login", json=body).status_code == 401
+    blocked = TestClient(app, client=("10.20.99.1", 40000)).post("/api/auth/login", json=body)
+    assert error_code(blocked, 429) == "rate_limited"
+    # другой сотрудник с нового адреса входит: лимит по коду не общий
+    other = {"employee_code": "VSM-1002", "pin": settings.demo_pin}
+    fresh = TestClient(app, client=("10.20.99.2", 40000))
+    assert fresh.post("/api/auth/login", json=other).status_code == 200
+
+
+def test_failed_logins_are_logged_by_code(client, caplog):
+    with caplog.at_level("WARNING", logger="provodnik"):
+        client.post("/api/auth/login", json={"employee_code": "VSM-1001", "pin": "0000"})
+    assert any("'VSM-1001'" in record.getMessage() for record in caplog.records)
+
+
+def test_expired_tokens_are_purged_on_login(client, login, app, settings):
+    def token_rows():
+        with app.state.session_factory() as db:
+            return db.scalar(select(func.count()).select_from(AuthToken))
+
+    login()
+    assert token_rows() == 1
+    clock.travel(settings.token_ttl_hours * 3600 + 1)
+    login()
+    assert token_rows() == 1
+
+
+def test_long_service_class_rejected_without_echo(client, login):
+    headers = login()
+    body = {"scenario_id": SCENARIO, "service_class": "v" * 100_000}
+    response = client.post("/api/sessions", json=body, headers=headers)
+    assert error_code(response, 422) == "validation_error"
+    assert len(response.text) < 2_000
 
 
 def test_login_me_and_logout(client, login):

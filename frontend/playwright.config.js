@@ -29,7 +29,7 @@ export default defineConfig({
   webServer: process.env.BASE_URL
     ? undefined
     : {
-        command: `"${python}" -m uvicorn app.main:app --host 127.0.0.1 --port ${defaultPort}`,
+        command: `"${python}" -m uvicorn app.main:app --host 127.0.0.1 --port ${defaultPort} --no-proxy-headers`,
         cwd: backend,
         url: `http://127.0.0.1:${defaultPort}/api/health`,
         reuseExistingServer: true,

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Request
 from sqlalchemy import select
 
@@ -10,10 +12,12 @@ from app.schemas import DemoAccount, EmployeeOut, LoginRequest, LoginResponse, O
 from app.seed import DEMO_ACCOUNTS
 from app.services import action_log
 
+logger = logging.getLogger("provodnik")
 router = APIRouter(prefix="/api/auth", tags=["Авторизация"])
 
 
 def client_address(request: Request) -> str:
+    # адрес берётся у соединения: X-Forwarded-For сервер не читает, пока перед ним нет доверенного прокси
     return request.client.host if request.client else "unknown"
 
 
@@ -23,11 +27,17 @@ def login(body: LoginRequest, request: Request, db: Db):
     address = client_address(request)
     now = clock.now()
     ticket = ratelimit.check(address, now, settings.login_rate_per_minute)
+    # тот же лимит на код сотрудника: подбор PIN с многих адресов упирается в него
+    code_key = f"code:{body.employee_code}"
+    code_ticket = ratelimit.check(code_key, now, settings.login_rate_per_minute)
     employee = db.scalar(select(Employee).where(Employee.code == body.employee_code))
     if not auth.verify_login(employee, body.pin):
-        # один ответ для неизвестного кода и неверного PIN: существование кода не раскрывается
+        # один ответ для неизвестного кода и неверного PIN: существование кода не раскрывается;
+        # в лог идёт код (не имя) в repr, чтобы перевод строки в теле не подделал запись
+        logger.warning("вход отклонён: код %r, адрес %s", body.employee_code, address)
         raise ApiError(401, "pin_invalid", "Неверный код сотрудника или PIN")
     ratelimit.release(address, ticket)
+    ratelimit.release(code_key, code_ticket)
     token, expires_at = auth.issue_token(db, employee, now, settings.token_ttl_hours)
     action_log.log(db, employee.id, "login", "employee", employee.code, {}, now)
     db.commit()
