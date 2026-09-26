@@ -38,7 +38,8 @@ def test_loads_reference_content():
     assert content.refs["sto_011_10_4"]["clause"] == "пункт 10.4"
     assert "medical_chest_pain" in content.scenarios
     assert content.files["medical_chest_pain"].name == "medical_chest_pain.yaml"
-    assert content.achievements == []
+    assert [item["id"] for item in content.achievements][:2] == ["first_run", "four_steps"]
+    assert content.challenges == []
 
 
 def test_yaml_dicts_remember_lines():

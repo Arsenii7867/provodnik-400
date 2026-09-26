@@ -22,6 +22,8 @@ def describe(refs: dict, key: str) -> dict:
             "phrase": ref["phrase"],
             "document": SITUATIONS_DOCUMENT,
             "clause": f"карточка {ref['number']}",
+            "number": ref["number"],
+            "reconstructed": False,
         }
     return {
         "key": key,
@@ -30,7 +32,10 @@ def describe(refs: dict, key: str) -> dict:
         "quote": ref["quote"],
         "phrase": "",
         "document": ref["document"],
-        "clause": ref["clause"],
+        "clause": str(ref["clause"]),
+        "number": None,
+        # нумерация пунктов восстановлена по оглавлению: разбор показывает номер вместе с цитатой
+        "reconstructed": bool(ref.get("reconstructed")),
     }
 
 

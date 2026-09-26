@@ -1,0 +1,77 @@
+# Достижения. Каждая запись это правило: type из реестра сервиса достижений и params для него.
+# Правило проверяется по событию завершения прохождения и выдаётся один раз; новая запись
+# появляется в каталоге как «не получена» без перезапуска сервера, а на следующем завершённом
+# прохождении, где правило выполнилось, выдаётся. rule_text видит сотрудник в профиле.
+#
+# Типы правил и их параметры:
+#   first_run              {}                                     первое завершённое прохождение
+#   role_chain             {times}                                прохождений с полной цепочкой признать, правило, решение, заверить
+#   timers_on_time         {run_expired, total_answered_min}      в этом прохождении истекло не больше run_expired таймеров, всего отвечено вовремя не меньше total_answered_min
+#   streak_no_incident     {runs}                                 последние runs прохождений подряд без инцидента
+#   outcome_in_class       {service_class, outcome, native_class} исход не хуже outcome в классе service_class; native_class true: класс задан сценарием, а не выбран при старте
+#   all_critical_exemplary {min_scenarios}                        у каждого критического сценария есть образцовое прохождение, критических сценариев не меньше min_scenarios
+#   competency_mastery     {competency, mastery_min, runs_min}    владение компетенцией не ниже mastery_min по не менее чем runs_min оценённым прохождениям
+#   escalation_channel     {distinct_targets, verdict}            разных адресатов эскалации с вердиктом verdict за все прохождения не меньше distinct_targets
+#   scale_min              {scale, min, critical}                 финальная шкала scale не ниже min; critical true: только в критическом сценарии
+
+- id: first_run
+  title: Первый рейс
+  description: Первое завершённое прохождение сценария.
+  rule: {type: first_run, params: {}}
+  rule_text: Завершите любой сценарий.
+
+- id: four_steps
+  title: Четыре шага
+  description: >-
+    Ролевая модель пройдена целиком: признать ситуацию, обозначить правило, предложить решение,
+    заверить пассажира.
+  rule: {type: role_chain, params: {times: 1}}
+  rule_text: Пройдите сценарий, выбрав реплики всех четырёх шагов ролевой модели по порядку.
+
+- id: cool_head
+  title: Хладнокровие
+  description: Решения под таймером принимаются вовремя.
+  rule: {type: timers_on_time, params: {run_expired: 0, total_answered_min: 3}}
+  rule_text: Ответьте до дедлайна на три таймера в сумме, и пусть ни один таймер не истечёт в последнем прохождении.
+
+- id: no_incidents_5
+  title: Пять рейсов без инцидента
+  description: Пять прохождений подряд завершены без инцидента.
+  rule: {type: streak_no_incident, params: {runs: 5}}
+  rule_text: Завершите пять прохождений подряд без исхода «инцидент».
+
+- id: first_class_exemplary
+  title: Первый класс образцово
+  description: Образцовый исход в сценарии первого класса, где пассажир переживает каждую ошибку острее.
+  rule: {type: outcome_in_class, params: {service_class: first, outcome: exemplary, native_class: true}}
+  rule_text: Пройдите образцово сценарий, действие которого происходит в первом классе.
+
+- id: critical_master
+  title: Критические образцово
+  description: Каждый критический сценарий пройден образцово хотя бы раз.
+  rule: {type: all_critical_exemplary, params: {min_scenarios: 3}}
+  rule_text: Получите образцовый исход во всех критических сценариях, их не меньше трёх.
+
+- id: inclusion_master
+  title: Инклюзия
+  description: Уверенное владение компетенцией «Инклюзивность».
+  rule: {type: competency_mastery, params: {competency: inclusion, mastery_min: 0.8, runs_min: 2}}
+  rule_text: Владение компетенцией «Инклюзивность» не ниже 0.8 по двум и более оценённым прохождениям.
+
+- id: first_aid_master
+  title: Первая помощь
+  description: Уверенное владение компетенцией «Первая помощь и здоровье».
+  rule: {type: competency_mastery, params: {competency: medical, mastery_min: 0.8, runs_min: 2}}
+  rule_text: Владение компетенцией «Первая помощь и здоровье» не ниже 0.8 по двум и более оценённым прохождениям.
+
+- id: right_channel
+  title: Правильный канал
+  description: Три разных адресата эскалации вызваны верно и вовремя (начальник поезда, ПТБ, бортинженер, медики, громкая связь).
+  rule: {type: escalation_channel, params: {distinct_targets: 3, verdict: best}}
+  rule_text: Сделайте лучший выбор с вызовом трёх разных адресатов эскалации за все прохождения.
+
+- id: safety_first
+  title: Безопасность прежде всего
+  description: Критический сценарий завершён с рейтингом безопасности не ниже 90.
+  rule: {type: scale_min, params: {scale: safety, min: 90, critical: true}}
+  rule_text: Завершите критический сценарий с рейтингом безопасности не ниже 90.
