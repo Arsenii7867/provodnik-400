@@ -3,7 +3,6 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
 
 from app.main import create_app
 
@@ -15,18 +14,10 @@ def error_of(response):
     return body["error"]
 
 
-class Probe(BaseModel):
-    seconds: int
-
-
-@pytest.fixture(scope="module")
-def probe_client(settings):
-    # маршруты-пробники: реальных тел запросов в каркасе ещё нет, а формат 422 и 500 проверить нужно
+@pytest.fixture
+def crash_client(settings):
+    # маршрут-пробник: другого честного способа вызвать необработанное исключение нет
     app = create_app(settings)
-
-    @app.post("/api/probe/validate", include_in_schema=False)
-    def validate(body: Probe):
-        return {"seconds": body.seconds}
 
     @app.get("/api/probe/crash", include_in_schema=False)
     def crash():
@@ -48,16 +39,16 @@ def test_wrong_method_is_405(client):
     assert error_of(response)["code"] == "method_not_allowed"
 
 
-def test_validation_error_is_422_with_fields(probe_client):
-    response = probe_client.post("/api/probe/validate", json={"seconds": "много"})
+def test_validation_error_is_422_with_fields(client):
+    response = client.post("/api/auth/login", json={"employee_code": "VSM-1001"})
     assert response.status_code == 422
     error = error_of(response)
     assert error["code"] == "validation_error"
-    assert error["details"]["errors"][0]["loc"] == ["body", "seconds"]
+    assert error["details"]["errors"][0]["loc"] == ["body", "pin"]
 
 
-def test_unexpected_error_is_500_without_traceback(probe_client):
-    response = probe_client.get("/api/probe/crash")
+def test_unexpected_error_is_500_without_traceback(crash_client):
+    response = crash_client.get("/api/probe/crash")
     assert response.status_code == 500
     assert error_of(response)["code"] == "internal_error"
     assert "RuntimeError" not in response.text

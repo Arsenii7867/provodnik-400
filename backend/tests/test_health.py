@@ -1,5 +1,7 @@
 from app import __version__
 
+MIN_PATHS = 12
+
 
 def test_health_reports_version_and_db(client):
     response = client.get("/api/health")
@@ -7,13 +9,21 @@ def test_health_reports_version_and_db(client):
     body = response.json()
     assert body["status"] == "ok"
     assert body["version"] == __version__
-    assert body["scenarios"] == 0
+    assert body["scenarios"] >= 1
+    assert body["content_errors"] == 0
     assert body["db"] == "sqlite"
 
 
 def test_openapi_operations_have_summary_and_tags(client):
     spec = client.get("/openapi.json").json()
+    assert len(spec["paths"]) >= MIN_PATHS
     for path, methods in spec["paths"].items():
         for method, operation in methods.items():
             assert operation.get("summary"), f"{method} {path} без summary"
             assert operation.get("tags"), f"{method} {path} без tags"
+
+
+def test_openapi_has_no_anonymous_body_schemas(client):
+    spec = client.get("/openapi.json").json()
+    anonymous = [name for name in spec["components"]["schemas"] if name.startswith("Body_")]
+    assert anonymous == []
