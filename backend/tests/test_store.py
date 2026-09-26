@@ -59,6 +59,32 @@ def test_store_keeps_previous_on_broken_file(content_copy):
     assert store.scenario(SCENARIO) == before and store.errors == []
 
 
+def test_store_keeps_previous_on_unreadable_file(content_copy):
+    store = ContentStore(content_copy)
+    before = store.scenario(SCENARIO)
+    path = content_copy / "scenarios" / f"{SCENARIO}.yaml"
+    # файл пересохранили в cp1251: это ошибка файла, а не повод для 500 на каждом запросе
+    path.write_bytes(path.read_text(encoding="utf-8").encode("cp1251"))
+    touch_later(path)
+    assert store.scenario(SCENARIO) == before
+    assert len(store.errors) == 1 and "unreadable_file" not in store.errors[0].split(":")[0]
+    assert store.error_items[0]["file"] == str(path)
+
+
+def test_store_holds_content_when_used_class_removed(content_copy):
+    store = ContentStore(content_copy)
+    before = store.scenario(SCENARIO)
+    classes = content_copy / "classes.yaml"
+    text = classes.read_text(encoding="utf-8")
+    start, end = text.index("business:"), text.index("first:")
+    classes.write_text(text[:start] + text[end:], encoding="utf-8")
+    touch_later(classes)
+    # сценарий бизнес-класса стал невалидным, поэтому и справочник классов остаётся прежним
+    assert store.scenario(SCENARIO) == before
+    assert "business" in store.content().classes
+    assert any("unknown_class" in line for line in store.errors)
+
+
 def test_store_keeps_everything_when_rules_broken(content_copy):
     store = ContentStore(content_copy)
     before = dict(store.scenarios())

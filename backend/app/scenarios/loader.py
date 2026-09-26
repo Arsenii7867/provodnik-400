@@ -73,6 +73,10 @@ def read_yaml(path):
         line = mark.line + 1 if mark else 0
         message = exc.problem or "не удалось разобрать YAML"
         return None, {"file": str(path), "line": line, "code": "yaml_syntax", "message": message}
+    except (yaml.YAMLError, UnicodeDecodeError, OSError) as exc:
+        # файл в другой кодировке, с управляющим символом или занят редактором: это ошибка файла, а не сервера
+        message = str(exc).splitlines()[0][:200] if str(exc) else exc.__class__.__name__
+        return None, {"file": str(path), "line": 0, "code": "unreadable_file", "message": message}
 
 
 def load_content(content_dir) -> Content:

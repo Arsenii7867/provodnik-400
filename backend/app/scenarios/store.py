@@ -1,7 +1,8 @@
 """Контент в памяти сервера с перечитыванием по изменению файлов. При каждом обращении
-сравниваются mtime и размер YAML в папке content; изменения проходят через валидатор, сломанный
-файл оставляет предыдущую версию сценария и попадает в store.errors и в лог. Так развилку можно
-добавить в работающий сервер без перезапуска, а опечатка в YAML не роняет каталог."""
+сравниваются mtime и размер YAML в папке content; изменения проходят через валидатор. Пока в
+папке есть хоть одна ошибка (нечитаемый файл, сломанный справочник, невалидный сценарий), сервер
+работает на прежней проверенной версии целиком, а ошибки видны в store.errors и в логе. Так
+развилку можно добавить в работающий сервер без перезапуска, а опечатка в YAML не роняет каталог."""
 
 import logging
 import threading
@@ -62,7 +63,15 @@ class ContentStore:
             stamps = self.file_stamps()
             if stamps == self.stamps and not force:
                 return None
-            report = self.read_all()
+            try:
+                report = self.read_all()
+            except Exception:
+                # сбой чтения не должен ронять каждый запрос: живёт прежний контент до следующей правки
+                logger.exception("контент: не удалось перечитать %s", self.content_dir)
+                self.record_errors(
+                    [{"file": str(self.content_dir), "line": 0, "message": "сбой чтения, см. лог"}]
+                )
+                report = None
             self.stamps = stamps
             return report
 
@@ -90,42 +99,24 @@ class ContentStore:
                 if finding.severity == "error":
                     message = f"{finding.code}: {finding.message}"
                     errors.append({"file": str(entry["file"]), "line": finding.line, "message": message})
-        if report["reference_problems"] and self.stamps is not None:
-            # без целых справочников сценарии проверить нельзя: остаётся прошлый контент целиком
-            logger.error("контент: справочники сломаны, сервер работает на прежней версии")
+        if errors and self.stamps is not None:
+            # частично обновлять нельзя: сценарий прежней версии может ссылаться на класс или норму, которых
+            # в новых справочниках уже нет, поэтому до исправления ошибок живёт вся прежняя версия
+            logger.error("контент: сервер работает на прежней версии, пока ошибки не исправлены")
         else:
-            self.keep_previous_versions(content, report)
             self.loaded = content
-        self.error_items = errors
-        self.errors = [f"{item['file']}:{item['line']}: {item['message']}" for item in errors]
+            valid = {key: entry for key, entry in report["scenarios"].items() if entry["valid"]}
+            self.analyses = {key: entry["analysis"] for key, entry in valid.items()}
+            self.sources = {key: read_text(entry["file"]) for key, entry in valid.items()}
+        self.record_errors(errors)
         self.summary = report["summary"]
-        for line in self.errors:
-            logger.error("контент: %s", line)
         return report
 
-    def keep_previous_versions(self, content, report):
-        """Сломанный сценарий не исчезает из каталога: остаётся версия, прошедшая проверку раньше."""
-        broken = set(report["invalid"])
-        for error in content.errors:
-            broken.update(self.ids_by_file(error["file"]))
-        analyses = {}
-        sources = {}
-        for scenario_id, entry in report["scenarios"].items():
-            if entry["valid"]:
-                analyses[scenario_id] = entry["analysis"]
-                sources[scenario_id] = read_text(entry["file"])
-        for scenario_id in broken:
-            if scenario_id in self.loaded.scenarios and scenario_id not in content.scenarios:
-                content.scenarios[scenario_id] = self.loaded.scenarios[scenario_id]
-                content.files[scenario_id] = self.loaded.files[scenario_id]
-                analyses[scenario_id] = self.analyses.get(scenario_id)
-                sources[scenario_id] = self.sources.get(scenario_id, "")
-        self.analyses = analyses
-        self.sources = sources
-
-    def ids_by_file(self, file):
-        path = Path(file)
-        return [scenario_id for scenario_id, known in self.loaded.files.items() if Path(known) == path]
+    def record_errors(self, errors):
+        self.error_items = errors
+        self.errors = [f"{item['file']}:{item['line']}: {item['message']}" for item in errors]
+        for line in self.errors:
+            logger.error("контент: %s", line)
 
 
 def read_text(path):
