@@ -32,7 +32,8 @@ npm run build
 | Путь | Что там |
 |---|---|
 | `backend/app` | сервер на FastAPI: настройки, единый формат ошибок, маршруты |
-| `backend/app/scenarios` | загрузчик, валидатор, перебор путей и граф сценариев |
+| `backend/app/scenarios` | движок прохождения, загрузчик, валидатор, перебор путей и граф сценариев |
+| `backend/app/services` | подсчёт результата: XP, уровни, владение компетенциями |
 | `backend/tests` | тесты pytest на временной SQLite, сломанные сценарии в `tests/fixtures/broken` |
 | `content` | справочники и сценарии в YAML, описание формата в `docs/scenarios.md` |
 | `frontend/src` | интерфейс на React, данные только через `src/lib/api.js` |
