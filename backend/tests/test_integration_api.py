@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from app import clock
 from app.models import Employee, OutboxEvent, Profile
+from app.seed import CONDUCTORS_PER_BRIGADE
 from tests.test_api_progress import play_expired_path
 from tests.test_api_sessions import error_code, play_best_path
 
@@ -176,7 +177,9 @@ def test_create_employee(client, app):
     login_body = {"employee_code": "VSM-1777", "pin": payload["pin"]}
     token = client.post("/api/auth/login", json=login_body).json()["token"]
     profile = client.get("/api/profile", headers={"Authorization": f"Bearer {token}"}).json()
-    assert profile["xp_total"] == 0 and profile["brigade"] == "С-02" and profile["rank_brigade"] == 1
+    # новичок без очков делит ноль с шестью проводниками бригады и стоит последним по коду
+    assert profile["xp_total"] == 0 and profile["brigade"] == "С-02"
+    assert profile["rank_brigade"] == CONDUCTORS_PER_BRIGADE + 1
     results = client.get("/api/integration/employees/VSM-1777/results", headers=KEY).json()
     assert results["display_name"] == "Новый проводник из HR" and results["runs"] == []
     assert (

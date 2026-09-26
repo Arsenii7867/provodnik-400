@@ -15,7 +15,8 @@ from app.main import create_app  # noqa: E402
 def main():
     target = BACKEND_DIR.parent / "docs" / "openapi.json"
     spec = create_app().openapi()
-    target.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # newline задан явно: иначе на Windows файл получит CRLF, а репозиторий хранит LF
+    target.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"OpenAPI: путей {len(spec['paths'])}, записано в {target}")
 
 

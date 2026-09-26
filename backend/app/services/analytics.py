@@ -143,7 +143,7 @@ def reason_text(item, title, points, rules):
     return f"{title}: {value}, ниже порога {settings['weak_below']:.2f}; {gives}"
 
 
-def recommend(store, content, runs, mastery, limit):
+def recommend(store, content, runs, mastery, mistakes, limit):
     """Сценарии для компетенций, которым нужна работа: по каждой берётся сценарий с наибольшим
     потенциалом по ней среди ещё не пройденных образцово; без прохождений это стартовый набор."""
     best = best_outcomes(runs)
@@ -151,8 +151,17 @@ def recommend(store, content, runs, mastery, limit):
     if not runs:
         return starter_recommendations(content, candidates, limit)
     titles = titles_of(content)
+    errors = {item["competency"]: item["count"] for item in mistakes}
     needing = [item for item in mastery if item["status"] in NEEDS_WORK]
-    needing.sort(key=lambda item: (NEEDS_WORK[item["status"]], item["mastery"] or 0.0, item["code"]))
+    # при равном владении вперёд идёт компетенция, где сотрудник чаще ошибался: там ошибки видны в ходах
+    needing.sort(
+        key=lambda item: (
+            NEEDS_WORK[item["status"]],
+            item["mastery"] or 0.0,
+            -errors.get(item["code"], 0),
+            item["code"],
+        )
+    )
     result = []
     used = set()
     for item in needing:
@@ -331,14 +340,17 @@ def personal(db, store, employee, now):
     mastery = mastery_for(db, content, employee.id)
     weak = [item["code"] for item in mastery if item["status"] == "weak"]
     gaps = [item["code"] for item in mastery if item["status"] == "gap"]
-    recommendations = recommend(store, content, runs, mastery, rules["analytics"]["recommendations"])
+    mistakes = mistakes_of(window, steps, titles)
+    recommendations = recommend(
+        store, content, runs, mastery, mistakes, rules["analytics"]["recommendations"]
+    )
     tempo = tempo_of(window)
     escalation = escalation_of(content, runs, steps, [run.id for run in window])
     return {
         "competencies": [item | {"title": titles[item["code"]]} for item in mastery],
         "weak": weak,
         "gaps": gaps,
-        "mistakes": mistakes_of(window, steps, titles),
+        "mistakes": mistakes,
         "recommendations": recommendations,
         "tempo": tempo,
         "escalation": escalation,

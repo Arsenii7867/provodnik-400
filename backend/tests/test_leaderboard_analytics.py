@@ -2,7 +2,7 @@
 при чтении и аналитика компетенций: всё считается из прохождений, ничего не хранится снимком."""
 
 import shutil
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import select
@@ -160,8 +160,9 @@ def test_challenges_listed_and_announced(client, login):
     assert safety["scenario_ids"] == ["medical_chest_pain", "smoking_vestibule", "unattended_bag"]
     assert safety["progress"] == {"done": 0, "total": 3, "completed": False}
     assert safety["bonus_points"] == 50 and safety["bonus_expires_at"] is None
-    # окно открыто сидом при старте приложения, поэтому сравниваем с точностью до минуты
-    assert clock.iso(clock.now() + timedelta(days=7))[:16] == safety["ends_at"][:16]
+    # окно открыто сидом, а не этим запросом: проверяем длину окна, а не его границы
+    window = datetime.fromisoformat(safety["ends_at"]) - datetime.fromisoformat(safety["starts_at"])
+    assert window == timedelta(days=7)
     assert listed[1]["progress"]["total"] == 3 and listed[2]["progress"]["total"] == 1
     alerts = [
         item

@@ -75,8 +75,8 @@ def test_competency_mastery_recommends(client, login):
     recommendations = report["recommendations"]
     assert 1 <= len(recommendations) <= 3
     assert len({item["scenario_id"] for item in recommendations}) == len(recommendations)
-    weakest = min(report["weak"], key=lambda code: (by_code[code]["mastery"], code))
-    assert recommendations[0]["competency"] == weakest
+    lowest = min(by_code[code]["mastery"] for code in report["weak"])
+    assert by_code[recommendations[0]["competency"]]["mastery"] == lowest
     for item in recommendations:
         title = by_code[item["competency"]]["title"]
         assert item["reason"].startswith(f"{title}: владение ") and "очк" in item["reason"]
