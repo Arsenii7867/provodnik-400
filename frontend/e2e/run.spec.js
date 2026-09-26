@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const DEMO_CODE = 'VSM-1001';
 const DEMO_PIN = process.env.DEMO_PIN || '1234';
+const MAX_MOVES = 20;
 
 async function login(page) {
   await page.goto('/login');
@@ -12,18 +13,13 @@ async function login(page) {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Мой прогресс');
 }
 
-async function startTimedScenario(page) {
-  await page.getByRole('link', { name: 'Сценарии' }).click();
-  await expect(page).toHaveURL(/\/scenarios$/);
-  const card = page.locator('.scenario-card', { hasText: 'с таймером' }).first();
-  await expect(card).toBeVisible();
-  await card.getByRole('button', { name: 'Начать' }).click();
-  await expect(page).toHaveURL(/\/play\/\d+$/);
-}
-
 async function scaleValues(page) {
   const texts = await page.locator('.scale-value').allTextContents();
   return texts.map(Number);
+}
+
+function finished(page) {
+  return page.locator('.ending').count();
 }
 
 // ход считается сделанным, когда сервер вернул новое состояние и счётчик ходов сменился
@@ -41,25 +37,51 @@ async function makeMove(page) {
   ]);
 }
 
+// Каталог отсортирован по id, а таймер может стоять не в первом узле: перебираем карточки
+// «с таймером» по порядку и идём первыми вариантами, пока на экране не появится кольцо.
+async function openTimerNode(page) {
+  await page.goto('/scenarios');
+  const cards = page.locator('.scenario-card', { hasText: 'с таймером' });
+  await expect(cards.first()).toBeVisible();
+  const total = await cards.count();
+  for (let index = 0; index < total; index += 1) {
+    await page.goto('/scenarios');
+    await cards.nth(index).getByRole('button', { name: 'Начать' }).click();
+    await expect(page).toHaveURL(/\/play\/\d+$/);
+    await expect(page.locator('.scale-bar')).toHaveCount(2);
+    for (let moves = 0; moves < MAX_MOVES; moves += 1) {
+      if (await page.locator('.timer-ring').count()) {
+        return;
+      }
+      if (await finished(page)) {
+        break;
+      }
+      await makeMove(page);
+    }
+  }
+  throw new Error('ни в одном сценарии каталога таймер не встретился на пути первых вариантов');
+}
+
 test('проводник входит, проходит сценарий с таймером и попадает в разбор', async ({ page }) => {
   await login(page);
-  await startTimedScenario(page);
+  await openTimerNode(page);
 
   const timer = page.locator('.timer-ring-value');
   await expect(timer).toHaveText(/^\d+:\d\d$/);
   const shown = await timer.textContent();
   await expect(timer).not.toHaveText(shown, { timeout: 3000 });
 
-  await expect(page.locator('.scale-bar')).toHaveCount(2);
   const start = await scaleValues(page);
   expect(start).toHaveLength(2);
-
-  await makeMove(page);
+  let moves = 0;
+  do {
+    await makeMove(page);
+    moves += 1;
+  } while ((await finished(page)) === 0 && moves < MAX_MOVES && (await scaleValues(page)).toString() === start.toString());
   await expect(page.locator('.scale-delta')).toHaveCount(2);
-  const after = await scaleValues(page);
-  expect(after).not.toEqual(start);
+  expect(await scaleValues(page)).not.toEqual(start);
 
-  for (let moves = 0; moves < 20 && (await page.locator('.ending').count()) === 0; moves += 1) {
+  for (; moves < MAX_MOVES && (await finished(page)) === 0; moves += 1) {
     await makeMove(page);
   }
   await expect(page.locator('.ending')).toContainText('Исход');
@@ -73,15 +95,10 @@ test('проводник входит, проходит сценарий с та
 test('истёкший таймер блокирует варианты, сервер ведёт по ветке истечения', async ({ page }) => {
   test.setTimeout(150_000);
   await login(page);
-  await startTimedScenario(page);
+  await openTimerNode(page);
 
-  for (let moves = 0; moves < 20 && (await page.locator('.timer-ring').count()) === 0; moves += 1) {
-    await makeMove(page);
-  }
-  await expect(page.locator('.timer-ring')).toBeVisible();
   const step = await page.locator('.step-no').textContent();
-  const optionsBefore = await page.locator('.option-button').count();
-  expect(optionsBefore).toBeGreaterThan(1);
+  expect(await page.locator('.option-button').count()).toBeGreaterThan(1);
 
   // таймеры сценариев не длиннее двух минут; ждём, пока клиент сообщит серверу об истечении
   await expect(page.locator('.notice-expired')).toBeVisible({ timeout: 125_000 });
