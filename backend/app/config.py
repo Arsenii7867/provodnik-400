@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+# окно допуска двустороннее: при большом допуске клиент мог бы закрывать таймер задолго до срока
+MAX_GRACE_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -23,13 +25,13 @@ class Settings:
     demo_pin: str = "1234"
 
 
-def _path(value: str) -> Path:
+def resolve_path(value):
     # относительные пути в .env считаются от папки backend, откуда запускается uvicorn
     path = Path(value)
     return path if path.is_absolute() else (BACKEND_DIR / path).resolve()
 
 
-def _origins(value: str) -> tuple[str, ...]:
+def split_origins(value):
     return tuple(origin.strip() for origin in value.split(",") if origin.strip())
 
 
@@ -44,14 +46,18 @@ def load_settings() -> Settings:
     if grace < 0:
         # отрицательный допуск перевернул бы окно: поздний выбор считался бы ранним истечением
         raise RuntimeError("TIMER_GRACE_SECONDS не может быть отрицательным")
+    if grace > MAX_GRACE_SECONDS:
+        raise RuntimeError(f"TIMER_GRACE_SECONDS не больше {MAX_GRACE_SECONDS:g}: иначе таймер решает клиент")
     return Settings(
         database_url=env.get("DATABASE_URL", defaults.database_url),
-        content_dir=_path(env["CONTENT_DIR"]) if "CONTENT_DIR" in env else defaults.content_dir,
+        content_dir=resolve_path(env["CONTENT_DIR"]) if "CONTENT_DIR" in env else defaults.content_dir,
         auto_seed=env.get("AUTO_SEED", "1") == "1",
         app_env=app_env,
-        cors_origins=_origins(env["CORS_ORIGINS"]) if env.get("CORS_ORIGINS") else defaults.cors_origins,
+        cors_origins=split_origins(env["CORS_ORIGINS"]) if env.get("CORS_ORIGINS") else defaults.cors_origins,
         integration_api_key=api_key,
-        frontend_dist=_path(env["FRONTEND_DIST"]) if "FRONTEND_DIST" in env else defaults.frontend_dist,
+        frontend_dist=resolve_path(env["FRONTEND_DIST"])
+        if "FRONTEND_DIST" in env
+        else defaults.frontend_dist,
         token_ttl_hours=int(env.get("TOKEN_TTL_HOURS", defaults.token_ttl_hours)),
         timer_grace_seconds=grace,
         login_rate_per_minute=int(env.get("LOGIN_RATE_PER_MINUTE", defaults.login_rate_per_minute)),

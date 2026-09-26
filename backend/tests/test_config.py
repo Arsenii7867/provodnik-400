@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from app.config import BACKEND_DIR, load_settings
+from app.config import BACKEND_DIR, MAX_GRACE_SECONDS, load_settings
 
 ENV_NAMES = (
     "DATABASE_URL",
@@ -59,6 +59,15 @@ def test_negative_grace_rejected(monkeypatch):
         load_settings()
     monkeypatch.setenv("TIMER_GRACE_SECONDS", "0")
     assert load_settings().timer_grace_seconds == 0.0
+
+
+def test_grace_is_capped(monkeypatch):
+    """Окно допуска двустороннее: слишком большой допуск отдал бы таймер клиенту."""
+    monkeypatch.setenv("TIMER_GRACE_SECONDS", "30")
+    with pytest.raises(RuntimeError):
+        load_settings()
+    monkeypatch.setenv("TIMER_GRACE_SECONDS", str(MAX_GRACE_SECONDS))
+    assert load_settings().timer_grace_seconds == MAX_GRACE_SECONDS
 
 
 def test_env_example_matches_config():

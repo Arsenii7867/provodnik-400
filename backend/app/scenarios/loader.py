@@ -24,11 +24,11 @@ class LineDict(dict):
 
 
 class DuplicateKey(yaml.constructor.ConstructorError):
-    pass
+    """Повтор ключа в словаре YAML: стандартный загрузчик молча берёт последнее значение."""
 
 
 class LineLoader(yaml.SafeLoader):
-    pass
+    """SafeLoader, у которого словари это LineDict с номером строки (см. construct_line_mapping)."""
 
 
 def construct_line_mapping(loader, node):
@@ -80,7 +80,7 @@ def read_yaml(path):
         return None, {"file": str(path), "line": 0, "code": "unreadable_file", "message": message}
 
 
-def load_content(content_dir) -> Content:
+def load_content(content_dir):
     """Читает справочники и все scenarios/*.yaml. Сценарии здесь ещё не проверены: валидацию и
     отсев сломанных делает validator.load_validated."""
     content_dir = Path(content_dir)
@@ -103,7 +103,7 @@ def load_content(content_dir) -> Content:
     return content
 
 
-def check_references(content) -> list[str]:
+def check_references(content):
     """Полнота справочников; каждое сообщение начинается с имени файла."""
     problems = []
     codes = [item.get("code") for item in content.competencies if isinstance(item, dict)]
