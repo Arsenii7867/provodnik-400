@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from app import clock
 from app.auth import CurrentEmployee
-from app.db import Db
+from app.db import Db, EntityId
 from app.schemas import NotificationOut, ReadAllResponse
 from app.services import notifications
 
@@ -23,5 +23,5 @@ def read_all(employee: CurrentEmployee, db: Db):
 @router.post(
     "/{notification_id}/read", summary="Отметить уведомление прочитанным", response_model=NotificationOut
 )
-def read_one(notification_id: int, employee: CurrentEmployee, db: Db):
+def read_one(notification_id: EntityId, employee: CurrentEmployee, db: Db):
     return notifications.mark_read(db, employee.id, notification_id, clock.now())

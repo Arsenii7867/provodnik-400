@@ -4,7 +4,7 @@ from fastapi import APIRouter, Header, Request, Response
 
 from app import clock
 from app.auth import CurrentEmployee
-from app.db import Db
+from app.db import Db, EntityId
 from app.schemas import ActiveResponse, ChooseRequest, ExpireRequest, RunState, StartSessionRequest
 from app.services import session_service
 
@@ -18,7 +18,7 @@ def start(
     response: Response,
     employee: CurrentEmployee,
     db: Db,
-    idempotency_key: Annotated[str | None, Header()] = None,
+    idempotency_key: Annotated[str | None, Header(max_length=128)] = None,
 ):
     store = request.app.state.store
     now = clock.now()
@@ -38,13 +38,13 @@ def active(request: Request, employee: CurrentEmployee, db: Db):
 
 
 @router.get("/{run_id}", summary="Состояние прохождения", response_model=RunState)
-def get_state(run_id: int, request: Request, employee: CurrentEmployee, db: Db):
+def get_state(run_id: EntityId, request: Request, employee: CurrentEmployee, db: Db):
     run = session_service.get_run(db, employee, run_id)
     return session_service.state_view(run, request.app.state.store, clock.now())
 
 
 @router.post("/{run_id}/choose", summary="Выбрать вариант в текущем узле", response_model=RunState)
-def choose(run_id: int, body: ChooseRequest, request: Request, employee: CurrentEmployee, db: Db):
+def choose(run_id: EntityId, body: ChooseRequest, request: Request, employee: CurrentEmployee, db: Db):
     store = request.app.state.store
     grace = request.app.state.settings.timer_grace_seconds
     now = clock.now()
@@ -54,7 +54,7 @@ def choose(run_id: int, body: ChooseRequest, request: Request, employee: Current
 
 
 @router.post("/{run_id}/expire", summary="Сообщить об истечении таймера", response_model=RunState)
-def expire(run_id: int, body: ExpireRequest, request: Request, employee: CurrentEmployee, db: Db):
+def expire(run_id: EntityId, body: ExpireRequest, request: Request, employee: CurrentEmployee, db: Db):
     store = request.app.state.store
     grace = request.app.state.settings.timer_grace_seconds
     now = clock.now()
@@ -64,7 +64,7 @@ def expire(run_id: int, body: ExpireRequest, request: Request, employee: Current
 
 
 @router.post("/{run_id}/abandon", summary="Прервать прохождение", response_model=RunState)
-def abandon(run_id: int, request: Request, employee: CurrentEmployee, db: Db):
+def abandon(run_id: EntityId, request: Request, employee: CurrentEmployee, db: Db):
     now = clock.now()
     run = session_service.get_run(db, employee, run_id)
     session_service.abandon(db, run, now)

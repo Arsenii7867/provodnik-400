@@ -10,7 +10,7 @@
 #   streak_no_incident     {runs}                                 последние runs прохождений подряд без инцидента
 #   outcome_in_class       {service_class, outcome, native_class} исход не хуже outcome в классе service_class; native_class true: класс задан сценарием, а не выбран при старте
 #   all_critical_exemplary {min_scenarios}                        у каждого критического сценария есть образцовое прохождение, критических сценариев не меньше min_scenarios
-#   competency_mastery     {competency, mastery_min, runs_min}    владение компетенцией не ниже mastery_min по не менее чем runs_min оценённым прохождениям
+#   competency_mastery     {competency, mastery_min, runs_min}    владение компетенцией не ниже mastery_min, разных сценариев с её оценкой в окне не меньше runs_min
 #   escalation_channel     {distinct_targets, verdict}            разных адресатов эскалации с вердиктом verdict за все прохождения не меньше distinct_targets
 #   scale_min              {scale, min, critical}                 финальная шкала scale не ниже min; critical true: только в критическом сценарии
 
@@ -56,13 +56,13 @@
   title: Инклюзия
   description: Уверенное владение компетенцией «Инклюзивность».
   rule: {type: competency_mastery, params: {competency: inclusion, mastery_min: 0.8, runs_min: 2}}
-  rule_text: Владение компетенцией «Инклюзивность» не ниже 0.8 по двум и более оценённым прохождениям.
+  rule_text: Владение компетенцией «Инклюзивность» не ниже 0.8 по двум и более разным сценариям, где она оценивалась.
 
 - id: first_aid_master
   title: Первая помощь
   description: Уверенное владение компетенцией «Первая помощь и здоровье».
   rule: {type: competency_mastery, params: {competency: medical, mastery_min: 0.8, runs_min: 2}}
-  rule_text: Владение компетенцией «Первая помощь и здоровье» не ниже 0.8 по двум и более оценённым прохождениям.
+  rule_text: Владение компетенцией «Первая помощь и здоровье» не ниже 0.8 по двум и более разным сценариям, где она оценивалась.
 
 - id: right_channel
   title: Правильный канал

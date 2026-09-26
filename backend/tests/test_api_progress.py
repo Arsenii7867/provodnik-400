@@ -330,17 +330,45 @@ def test_achievements_yaml_is_checked(tmp_path):
     broken = text.replace("type: role_chain, params: {times: 1}", "type: role_chain, params: {}")
     broken = broken.replace("type: first_run", "type: first_flight")
     broken = broken.replace("competency: inclusion", "competency: kindness")
+    # строка вместо числа, число вместо строки, лишний ключ и отрицательное число тоже ловятся до выдачи
+    broken = broken.replace("params: {runs: 5}", "params: {runs: 'пять'}")
+    broken = broken.replace("verdict: best}", "verdict: 1}")
+    broken = broken.replace("min: 90, critical: true}", "min: -1, critical: 1, extra: 2}")
+    broken = broken.replace("title: Хладнокровие", "title: 12345")
     path.write_text(broken, encoding="utf-8")
     problems = achievements.check_achievements(load_content(tmp_path / "content"))
     assert problems == [
         "first_run: rule.type должен быть одним из " + ", ".join(achievements.RULES),
         "four_steps: в params нет times",
+        "запись 3: нужны непустые строки id, title, description, rule_text и словарь rule",
+        "no_incidents_5: параметр runs должен быть числом",
         "inclusion_master: компетенции «kindness» нет в competencies.yaml",
+        "right_channel: параметр verdict должен быть строкой",
+        "safety_first: параметр min не может быть отрицательным",
+        "safety_first: параметр critical должен быть true или false",
+        "safety_first: в params лишний ключ extra",
     ]
     path.write_text("- id: only\n", encoding="utf-8")
     assert achievements.check_achievements(load_content(tmp_path / "content")) == [
-        "запись 1: нужны поля id, title, description, rule, rule_text"
+        "запись 1: нужны непустые строки id, title, description, rule_text и словарь rule"
     ]
+
+
+def test_ids_out_of_range_rejected(client, login):
+    headers = login()
+    huge = 2**63
+    responses = [
+        client.get(f"/api/runs/{huge}/debrief", headers=headers),
+        client.get(f"/api/sessions/{huge}", headers=headers),
+        client.post(f"/api/notifications/{huge}/read", headers=headers),
+        client.get("/api/sessions/0", headers=headers),
+    ]
+    assert [error_code(response, 422) for response in responses] == ["validation_error"] * 4
+    assert error_code(client.get(f"/api/sessions/{huge - 1}", headers=headers), 404) == "run_not_found"
+    long_key = {"Idempotency-Key": "k" * 129}
+    body = {"scenario_id": "medical_chest_pain"}
+    too_long = client.post("/api/sessions", json=body, headers=headers | long_key)
+    assert error_code(too_long, 422) == "validation_error"
 
 
 def bump_mtime(path):
@@ -376,3 +404,13 @@ def test_new_achievement_appears_without_restart(settings, tmp_path):
         assert view["loyalty"] >= 90
         debrief = client.get(f"/api/runs/{view['run_id']}/debrief", headers=headers).json()
         assert "loyal_friend" in [item["id"] for item in debrief["achievements_new"]]
+        assert client.get("/api/profile", headers=headers).json()["achievements_count"] == 5
+        # убранное из YAML достижение исчезает из каталога и из счётчика профиля, запись в базе остаётся
+        start = text.index("- id: four_steps")
+        end = text.index("- id: cool_head")
+        path.write_text(text[:start] + text[end:], encoding="utf-8")
+        bump_mtime(path)
+        profile = client.get("/api/profile", headers=headers).json()
+        assert (profile["achievements_count"], profile["achievements_total"]) == (4, 10)
+        catalog = client.get("/api/achievements", headers=headers).json()
+        assert "four_steps" not in [item["id"] for item in catalog]

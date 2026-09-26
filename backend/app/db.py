@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, Request
+from fastapi import Path as PathParam
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 from app.models import Base
 
 SQLITE_BUSY_TIMEOUT_MS = 5000
+# id в SQLite и PostgreSQL 64-битные: число больше даёт OverflowError драйвера, а должно давать 422
+MAX_ID = 2**63 - 1
 
 
 def make_engine(database_url: str):
@@ -49,3 +52,4 @@ def get_db(request: Request):
 
 
 Db = Annotated[Session, Depends(get_db)]
+EntityId = Annotated[int, PathParam(ge=1, le=MAX_ID)]

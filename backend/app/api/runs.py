@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from sqlalchemy import func, select
 
 from app.auth import CurrentEmployee
-from app.db import Db
+from app.db import Db, EntityId
 from app.errors import ApiError
 from app.models import AchievementEarned, RunStep, ScenarioRun
 from app.scenarios import engine, refs
@@ -127,7 +127,7 @@ def earlier_runs(db, run, same_scenario):
     summary="Разбор завершённого прохождения по шагам",
     response_model=DebriefResponse,
 )
-def debrief(run_id: int, request: Request, employee: CurrentEmployee, db: Db):
+def debrief(run_id: EntityId, request: Request, employee: CurrentEmployee, db: Db):
     run = session_service.get_run(db, employee, run_id)
     if run.status != "finished":
         message = "Разбор доступен после завершения прохождения"

@@ -12,7 +12,7 @@ from app.scenarios.engine import OUTCOMES
 from app.scenarios.schema import VERDICTS
 from app.services import notifications, outbox
 
-FIELDS = ("id", "title", "description", "rule", "rule_text")
+TEXT_FIELDS = ("id", "title", "description", "rule_text")
 SCALES = ("loyalty", "safety")
 
 
@@ -70,17 +70,24 @@ def rule_scale_min(facts, params):
     return run[params["scale"]] >= params["min"]
 
 
+NUMBER = (int, float)
+# тип правила: функция проверки и обязательные параметры с типами; значения читаются из YAML как есть,
+# поэтому строка вместо числа ловится здесь, а не TypeError при завершении прохождения
 RULES = {
-    "first_run": (rule_first_run, ()),
-    "role_chain": (rule_role_chain, ("times",)),
-    "timers_on_time": (rule_timers_on_time, ("run_expired", "total_answered_min")),
-    "streak_no_incident": (rule_streak_no_incident, ("runs",)),
-    "outcome_in_class": (rule_outcome_in_class, ("service_class", "outcome")),
-    "all_critical_exemplary": (rule_all_critical_exemplary, ("min_scenarios",)),
-    "competency_mastery": (rule_competency_mastery, ("competency", "mastery_min", "runs_min")),
-    "escalation_channel": (rule_escalation_channel, ("distinct_targets", "verdict")),
-    "scale_min": (rule_scale_min, ("scale", "min")),
+    "first_run": (rule_first_run, {}),
+    "role_chain": (rule_role_chain, {"times": int}),
+    "timers_on_time": (rule_timers_on_time, {"run_expired": int, "total_answered_min": int}),
+    "streak_no_incident": (rule_streak_no_incident, {"runs": int}),
+    "outcome_in_class": (rule_outcome_in_class, {"service_class": str, "outcome": str}),
+    "all_critical_exemplary": (rule_all_critical_exemplary, {"min_scenarios": int}),
+    "competency_mastery": (
+        rule_competency_mastery,
+        {"competency": str, "mastery_min": NUMBER, "runs_min": int},
+    ),
+    "escalation_channel": (rule_escalation_channel, {"distinct_targets": int, "verdict": str}),
+    "scale_min": (rule_scale_min, {"scale": str, "min": int}),
 }
+OPTIONAL_PARAMS = {"native_class": bool, "critical": bool}
 
 
 def check_achievements(content) -> list[str]:
@@ -91,22 +98,42 @@ def check_achievements(content) -> list[str]:
     problems = []
     seen = set()
     for index, item in enumerate(items, 1):
-        if not isinstance(item, dict) or any(not item.get(name) for name in FIELDS):
-            problems.append(f"запись {index}: нужны поля {', '.join(FIELDS)}")
+        if not isinstance(item, dict) or not all(is_text(item.get(name)) for name in TEXT_FIELDS):
+            problems.append(f"запись {index}: нужны непустые строки {', '.join(TEXT_FIELDS)} и словарь rule")
             continue
         if item["id"] in seen:
             problems.append(f"{item['id']}: id повторяется")
         seen.add(item["id"])
-        rule = item["rule"]
+        rule = item.get("rule")
         if not isinstance(rule, dict) or rule.get("type") not in RULES:
             problems.append(f"{item['id']}: rule.type должен быть одним из {', '.join(RULES)}")
             continue
         params = rule.get("params") if isinstance(rule.get("params"), dict) else {}
-        missing = [name for name in RULES[rule["type"]][1] if name not in params]
-        if missing:
-            problems.append(f"{item['id']}: в params нет {', '.join(missing)}")
-        else:
-            problems += [f"{item['id']}: {problem}" for problem in check_codes(content, params)]
+        found = check_params(params, RULES[rule["type"]][1])
+        if not found:
+            found = check_codes(content, params)
+        problems += [f"{item['id']}: {problem}" for problem in found]
+    return problems
+
+
+def is_text(value):
+    return isinstance(value, str) and bool(value.strip())
+
+
+def check_params(params, spec):
+    """Обязательные параметры на месте и нужного типа, необязательные булевы, лишних нет."""
+    problems = [f"в params нет {name}" for name in spec if name not in params]
+    for name, value in params.items():
+        kind = spec.get(name) or OPTIONAL_PARAMS.get(name)
+        if kind is None:
+            problems.append(f"в params лишний ключ {name}")
+        elif kind is bool and not isinstance(value, bool):
+            problems.append(f"параметр {name} должен быть true или false")
+        elif kind is not bool and (isinstance(value, bool) or not isinstance(value, kind)):
+            expected = "строкой" if kind is str else "числом"
+            problems.append(f"параметр {name} должен быть {expected}")
+        elif kind is not str and kind is not bool and value < 0:
+            problems.append(f"параметр {name} не может быть отрицательным")
     return problems
 
 

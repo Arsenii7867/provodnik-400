@@ -61,8 +61,11 @@ def profile(request: Request, employee: CurrentEmployee, db: Db):
     finished = ScenarioRun.employee_id == employee.id, ScenarioRun.status == "finished"
     runs_count = db.scalar(select(func.count()).select_from(ScenarioRun).where(*finished))
     last_run = db.scalar(select(ScenarioRun).where(*finished).order_by(ScenarioRun.id.desc()).limit(1))
-    earned = AchievementEarned.employee_id == employee.id
-    achievements_count = db.scalar(select(func.count()).select_from(AchievementEarned).where(earned))
+    mine = AchievementEarned.employee_id == employee.id
+    earned = db.scalars(select(AchievementEarned.achievement_id).where(mine))
+    # достижение, убранное из YAML, в счётчик не входит: каталог его тоже не показывает
+    known = {item["id"] for item in content.achievements}
+    achievements_count = sum(achievement_id in known for achievement_id in earned)
     return employee_view(employee) | {
         "xp_total": xp_total,
         "level": level,
