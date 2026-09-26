@@ -55,7 +55,7 @@ curl -s -X POST http://localhost:8000/api/auth/login \
 | 404 | `not_found`, `scenario_not_found`, `run_not_found`, `notification_not_found`, `employee_not_found`, `brigade_not_found` | нет адреса или объекта; чужие объекты дают 403, а не 404 |
 | 405 | `method_not_allowed` | метод не поддерживается адресом |
 | 409 | `stale_step`, `option_unavailable`, `too_early`, `already_finished`, `run_not_active`, `no_timer`, `idempotency_mismatch`, `run_not_finished`, `employee_exists` | конфликт состояния прохождения (подробности в разделе «Прохождение»), повтор ключа для другого сценария, разбор до завершения, сотрудник уже есть |
-| 413 | `payload_too_large` | тело больше 1 МБ по Content-Length |
+| 413 | `payload_too_large` | тело больше 1 МБ по фактическим байтам или Content-Length |
 | 422 | `validation_error` | тело или параметры не прошли Pydantic; в `details.errors` список `{loc, msg}` |
 | 429 | `rate_limited` | лимит входа; `details.retry_after` и заголовок `Retry-After` в секундах |
 | 500 | `internal_error` | необработанная ошибка, в лог уходит трассировка, клиенту только код |

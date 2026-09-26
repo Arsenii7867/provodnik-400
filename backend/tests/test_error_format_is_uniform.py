@@ -69,7 +69,7 @@ def test_framework_messages_are_russian(client):
 
 
 def test_oversized_body_is_413_in_uniform_format(client):
-    from app.main import MAX_BODY_BYTES
+    from app.http_security import MAX_BODY_BYTES
 
     response = client.post(
         "/api/auth/login", content=b"0" * (MAX_BODY_BYTES + 1), headers={"Content-Type": "application/json"}

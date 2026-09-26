@@ -5,7 +5,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,19 +32,14 @@ from app.api import (
 from app.auth import verify_pin
 from app.config import Settings, load_settings
 from app.db import make_engine, prepare_database
-from app.errors import MESSAGES_BY_STATUS, ApiError, error_response, install_error_handlers
+from app.errors import ApiError, install_error_handlers
+from app.http_security import SecurityMiddleware
 from app.models import Employee
 from app.scenarios.store import ContentStore
 from app.seed import seed
 
 # эти префиксы обслуживает сам сервер, для них фолбэк на index.html не нужен
 SERVER_PREFIXES = ("api", "docs", "redoc", "openapi.json", "static-offline-docs")
-# заголовки на каждом ответе; HTTPS и HSTS остаются на прокси перед сервером
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
-}
 # политика только для страницы приложения: фронт собран без внешних скриптов, стилей и шрифтов
 PAGE_CSP = "; ".join(
     (
@@ -55,7 +50,6 @@ PAGE_CSP = "; ".join(
         "base-uri 'self'",
     )
 )
-MAX_BODY_BYTES = 1_000_000
 
 
 @asynccontextmanager
@@ -98,7 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     install_error_handlers(app)
-    install_security(app)
+    app.add_middleware(SecurityMiddleware)
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(profile.router)
@@ -115,28 +109,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if (settings.frontend_dist / "index.html").exists():
         mount_frontend(app, settings.frontend_dist)
     return app
-
-
-def with_security_headers(response, path):
-    for name, value in SECURITY_HEADERS.items():
-        response.headers.setdefault(name, value)
-    if path.startswith("/api"):
-        # ответы API персональные: браузер и прокси их не кэшируют
-        response.headers["Cache-Control"] = "no-store"
-    return response
-
-
-def install_security(app: FastAPI):
-    """Заголовки безопасности на каждом ответе и предел заявленного размера тела; поток без
-    Content-Length ограничивает прокси."""
-
-    @app.middleware("http")
-    async def security(request: Request, call_next):
-        length = request.headers.get("content-length", "")
-        if length.isdigit() and int(length) > MAX_BODY_BYTES:
-            rejected = error_response(413, "payload_too_large", MESSAGES_BY_STATUS[413])
-            return with_security_headers(rejected, request.url.path)
-        return with_security_headers(await call_next(request), request.url.path)
 
 
 def mount_frontend(app: FastAPI, dist: Path):
