@@ -113,7 +113,7 @@ curl -s http://localhost:8000/api/scenarios/{scenario_id}/graph -H "Authorizatio
 | Метод и путь | Что делает |
 |---|---|
 | `POST /api/sessions` | старт: `{scenario_id, service_class?}` -> `201` состояние прохождения; необязательный заголовок `Idempotency-Key` (повтор возвращает то же прохождение с `200`); новый старт переводит прежнее активное прохождение сотрудника в `abandoned` |
-| `GET /api/sessions/active` | `{active: состояние | null}` для кнопки «Продолжить» |
+| `GET /api/sessions/active` | `{active: состояние}` для кнопки «Продолжить», без активного прохождения `active` равен `null` |
 | `GET /api/sessions/{run_id}` | состояние прохождения (варианты берутся из текущего файла сценария) |
 | `POST /api/sessions/{run_id}/choose` | ход: `{option_id, step_no}`; у узла-события единственный ход `continue` |
 | `POST /api/sessions/{run_id}/expire` | сообщить об истечении таймера: `{step_no}` |
@@ -200,7 +200,7 @@ curl -s http://localhost:8000/api/runs/{run_id}/debrief -H "Authorization: Beare
 
 | Метод и путь | Что делает |
 |---|---|
-| `GET /api/leaderboard` | `scope=brigade|depot|company` (по умолчанию бригада), `limit` до 100 (по умолчанию 20) -> `{scope, scope_title, rows, me}`; строка: место, код, имя, бригада, депо, `score` (сумма лучших очков по сценариям плюс неистёкшие бонусы), `best_scores_sum`, `bonus_points`, число достижений, `is_me`; `me` это своя строка с местом по всему охвату, у наставника `null` |
+| `GET /api/leaderboard` | `scope` равен `brigade`, `depot` или `company` (по умолчанию бригада), `limit` до 100 (по умолчанию 20) -> `{scope, scope_title, rows, me}`; строка: место, код, имя, бригада, депо, `score` (сумма лучших очков по сценариям плюс неистёкшие бонусы), `best_scores_sum`, `bonus_points`, число достижений, `is_me`; `me` это своя строка с местом по всему охвату, у наставника `null` |
 
 ```
 curl -s "http://localhost:8000/api/leaderboard?scope=depot&limit=20" -H "Authorization: Bearer $TOKEN"
