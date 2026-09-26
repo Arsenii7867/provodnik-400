@@ -260,6 +260,37 @@ def test_validator_finds_no_errors(scenario, content):
     assert [item for item in findings if item.severity == "error"] == []
 
 
+def verdict_of(scenario, node_id, option_id):
+    for option in scenario["nodes"][node_id].get("options") or []:
+        if option["id"] == option_id:
+            return option["debrief"]["verdict"]
+    return None
+
+
+def test_trap_options_never_reach_exemplary(scenario, content):
+    """Образцовый исход достижим только без ловушек: путь с вариантом verdict bad обязан упереться
+    в пороги сценария, иначе разбор хвалит за то, за что штрафует."""
+    exemplary = 0
+    stack = [(engine.start_state(scenario, content), [])]
+    while stack:
+        state, prefix = stack.pop()
+        if state["status"] == "finished":
+            if state["outcome"] == "exemplary":
+                exemplary += 1
+                traps = [
+                    (node_id, move)
+                    for node_id, move in prefix
+                    if verdict_of(scenario, node_id, move) == "bad"
+                ]
+                assert traps == [], f"образцовый путь с ловушкой: {[move for _, move in prefix]}"
+            continue
+        for move in moves(scenario, state):
+            branch = copy.deepcopy(state)
+            make_move(scenario, content, branch, move)
+            stack.append((branch, prefix + [(state["node"], move)]))
+    assert exemplary > 0, "образцовый исход недостижим в родном классе"
+
+
 def tokens(text):
     return {word.strip(".,;:«»!?").lower() for word in text.split() if len(word) > 3}
 

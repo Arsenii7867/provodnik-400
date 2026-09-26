@@ -98,15 +98,16 @@ def test_store_keeps_everything_when_rules_broken(content_copy):
 
 def test_reload_report_lists_new_ids(content_copy):
     store = ContentStore(content_copy)
-    assert list(store.scenarios()) == [SCENARIO]
+    before = sorted(store.scenarios())
+    assert SCENARIO in before
     source = content_copy / "scenarios" / f"{SCENARIO}.yaml"
     copy = content_copy / "scenarios" / "medical_copy.yaml"
     text = source.read_text(encoding="utf-8").replace(f"id: {SCENARIO}", "id: medical_copy", 1)
     copy.write_text(text, encoding="utf-8")
     report = store.reload()
     assert report["new"] == ["medical_copy"] and report["removed"] == []
-    assert report["loaded"] == [SCENARIO, "medical_copy"]
-    assert report["summary"].startswith("ИТОГ: сценариев=2")
+    assert report["loaded"] == sorted([*before, "medical_copy"])
+    assert report["summary"].startswith(f"ИТОГ: сценариев={len(before) + 1}")
     copy.unlink()
     report = store.reload()
-    assert report["removed"] == ["medical_copy"] and report["loaded"] == [SCENARIO]
+    assert report["removed"] == ["medical_copy"] and report["loaded"] == before
