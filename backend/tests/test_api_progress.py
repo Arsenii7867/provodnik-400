@@ -5,6 +5,8 @@
 import dataclasses
 import os
 import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -280,6 +282,32 @@ def test_competencies_updated(client, login, app):
         "assessed": 0,
         "runs_assessed": 0,
     }
+
+
+def test_concurrent_finish_awards_once(app, settings):
+    # две вкладки жмут последний вариант одновременно: один ход проходит, второй получает 409
+    with TestClient(app) as first, TestClient(app) as second:
+        body = {"employee_code": "VSM-1001", "pin": settings.demo_pin}
+        headers = {"Authorization": f"Bearer {first.post('/api/auth/login', json=body).json()['token']}"}
+        view = play(first, headers, BEST_PATH[:-1])
+        barrier = threading.Barrier(2)
+
+        def press(client):
+            barrier.wait()
+            return choose(client, headers, view, BEST_PATH[-1])
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(press, [first, second]))
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    rejected = next(response for response in responses if response.status_code == 409)
+    assert rejected.json()["error"]["code"] in ("stale_step", "already_finished")
+    with app.state.session_factory() as db:
+        run = db.get(ScenarioRun, view["run_id"])
+        assert run.status == "finished" and db.get(Profile, run.employee_id).xp_total == run.xp_earned == 185
+        assert len(db.scalars(select(AchievementEarned)).all()) == len(BEST_PATH_ACHIEVEMENTS)
+        completed = select(OutboxEvent).where(OutboxEvent.event_type == "run_completed")
+        assert len(db.scalars(completed).all()) == 1
+        assert len(db.scalars(select(Notification).where(Notification.kind == "level_up")).all()) == 1
 
 
 def test_profile_runs_history(client, login):
