@@ -84,24 +84,27 @@ def check_texts(scenario, checker):
     checker.node = checker.option = None
 
 
-def iter_texts(scenario, node_id=None, option_id=None, where=None, value=None):
+def iter_texts(scenario):
     """Все строки сценария с узлом и вариантом, внутри которых они встретились."""
-    value = scenario if value is None else value
+    yield from walk_texts(scenario, scenario, None, None, None)
+
+
+def walk_texts(scenario, value, node_id, option_id, where):
     if isinstance(value, dict):
         where = value if line_of(value) else where
         for key, item in value.items():
-            if key == "nodes" and value is scenario:
+            if key == "nodes" and value is scenario and isinstance(item, dict):
                 for inner_id, node in item.items():
-                    yield from iter_texts(scenario, inner_id, None, node, node)
+                    yield from walk_texts(scenario, node, inner_id, None, node)
             elif key == "options" and isinstance(item, list):
                 for option in item:
                     inner = option.get("id") if isinstance(option, dict) else None
-                    yield from iter_texts(scenario, node_id, inner, option, option)
+                    yield from walk_texts(scenario, option, node_id, inner, option)
             else:
-                yield from iter_texts(scenario, node_id, option_id, where, item)
+                yield from walk_texts(scenario, item, node_id, option_id, where)
     elif isinstance(value, list):
         for item in value:
-            yield from iter_texts(scenario, node_id, option_id, where, item)
+            yield from walk_texts(scenario, item, node_id, option_id, where)
     elif isinstance(value, str):
         yield value, node_id, option_id, where
 
@@ -307,6 +310,7 @@ def check_paths(scenario, checker):
             "на одном из путей узел остаётся без вариантов",
             scenario["nodes"][node_id],
         )
+    check_expire_cost(scenario, own, checker)
     checker.node = checker.option = None
     if len(own["outcomes"]) < settings["min_outcomes"]:
         checker.error(
@@ -337,6 +341,23 @@ def check_paths(scenario, checker):
             scenario,
         )
     return result
+
+
+def check_expire_cost(scenario, own, checker):
+    """Таймер не декоративен, только если истечение закрывает лучший финал узла: лучший путь
+    через истечение обязан быть хуже лучшего пути через любой вариант того же узла."""
+    for node_id, timer in sorted(own["timers"].items()):
+        if not timer["expired_finals"] or not timer["answered_finals"]:
+            continue
+        expired = analysis.final_key(analysis.best_final(timer["expired_finals"]))
+        answered = analysis.final_key(analysis.best_final(timer["answered_finals"]))
+        if expired >= answered:
+            checker.node, checker.option = node_id, None
+            checker.error(
+                "expire_branch_harmless",
+                "истечение таймера не ухудшает лучший достижимый финал: таймер ничего не решает",
+                scenario["nodes"][node_id]["timer"]["on_expire"],
+            )
 
 
 def validate_content(content):
