@@ -4,7 +4,7 @@
 
 import re
 
-from app.scenarios.engine import ROLE_CHAIN
+from app.scenarios.engine import CONTINUE, ROLE_CHAIN
 from app.scenarios.findings import is_int, is_text
 
 ESCALATION_TARGETS = "chief ptb engineer police medics_station pa_announcement driver station".split()
@@ -12,6 +12,8 @@ NODE_TYPES = ("dialog", "event", "ending")
 VERDICTS = ("best", "ok", "bad")
 FORCED_OUTCOMES = ("incident", "acceptable")
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+# реплика проводника пассажиру пишется в «кавычках»: по ней видно, что шаг ролевой модели сказан, а не сделан
+PHRASE_PATTERN = re.compile(r"«[^»]+»")
 
 # допустимые поля каждого блока DSL; всё, чего нет в списке, это ошибка schema (ловит опечатки)
 KEYS = {
@@ -197,7 +199,12 @@ def check_dialog(node, scenario, checker):
     if timer is not None and is_int(timer.get("seconds")):
         many = len(options) >= checker.limits["short_timer_options"]
         if timer["seconds"] < checker.limits["short_timer_seconds"] and many:
-            checker.warning("short_timer_many_options", "короткий таймер и четыре и больше вариантов", node)
+            checker.warning(
+                "short_timer_many_options",
+                f"таймер короче {checker.limits['short_timer_seconds']} с и вариантов "
+                f"{checker.limits['short_timer_options']} и больше",
+                node,
+            )
 
 
 def check_timer(timer, checker):
@@ -222,6 +229,10 @@ def check_timer(timer, checker):
     checker.effects(on_expire.get("effects"), on_expire)
     checker.competency_points(on_expire.get("competencies"), on_expire)
     checker.flags(on_expire.get("set_flags"), "set_flags", on_expire)
+    if not any(on_expire.get(key) for key in ("effects", "competencies", "set_flags")):
+        checker.error(
+            "expire_branch_no_effects", "у ветки истечения нет ни эффектов, ни очков, ни флагов", on_expire
+        )
     check_debrief(on_expire.get("debrief"), on_expire, checker, verdict="bad")
 
 
@@ -250,11 +261,19 @@ def check_option(option, scenario, checker, with_timer):
     keys(checker, option, "option", "вариант")
     if not isinstance(option.get("id"), str) or not ID_PATTERN.match(option["id"]):
         checker.error("schema", "id варианта должен быть латиницей в snake_case", option)
-    if checker.text(option.get("text"), "text", option, checker.limits["option_text_max"]) and with_timer:
-        if len(option["text"]) > checker.limits["option_text_max_with_timer"]:
-            checker.warning(
-                "option_text_long_for_timer", "текст варианта под таймером длиннее 120 знаков", option
-            )
+    elif option["id"] == CONTINUE:
+        checker.error(
+            "reserved_option_id",
+            f"id «{CONTINUE}» занят ходом «Далее» у события и в выбранные не пишется",
+            option,
+        )
+    has_text = checker.text(option.get("text"), "text", option, checker.limits["option_text_max"])
+    if has_text and with_timer and len(option["text"]) > checker.limits["option_text_max_with_timer"]:
+        checker.warning(
+            "option_text_long_for_timer",
+            f"текст варианта под таймером длиннее {checker.limits['option_text_max_with_timer']} знаков",
+            option,
+        )
     if not is_text(option.get("next")):
         checker.error("schema", "у варианта нет перехода next", option)
     checker.effects(option.get("effects"), option)
@@ -264,9 +283,22 @@ def check_option(option, scenario, checker, with_timer):
         checker.error(
             "unknown_role_step", f"role_step «{option['role_step']}» не из {', '.join(ROLE_CHAIN)}", option
         )
+    elif "role_step" in option and has_text and not PHRASE_PATTERN.search(option["text"]):
+        checker.error(
+            "role_step_without_phrase",
+            "шаг ролевой модели без реплики пассажиру в «кавычках»: модель это слова, а не действие",
+            option,
+        )
     check_escalation(option, scenario, checker)
     for item in option.get("delayed") or []:
         check_delayed(item, checker)
+    target = scenario["nodes"].get(option.get("next")) if isinstance(option.get("next"), str) else None
+    if option.get("delayed") and isinstance(target, dict) and target.get("type") == "ending":
+        checker.warning(
+            "delayed_never_matures",
+            "отложенное последствие на переходе в концовку применяется сразу, отменить его нельзя",
+            option,
+        )
     if "when" in option:
         check_when(option["when"], scenario, checker)
     check_debrief(option.get("debrief"), option, checker)
@@ -339,9 +371,22 @@ def check_debrief(debrief, where, checker, verdict=None):
             checker.error("schema", "verdict должен быть best, ok или bad", debrief)
     if not is_text(debrief.get("why")):
         checker.error("missing_why", "в разборе нет why", debrief)
+    else:
+        check_explanation(debrief["why"], "why", checker.limits["why_min"], debrief, checker)
     if verdict != "best" and not is_text(debrief.get("better")):
         checker.error("missing_better", "при verdict не best нужен better: как поступить лучше", debrief)
+    elif verdict != "best":
+        check_explanation(debrief["better"], "better", checker.limits["better_min"], debrief, checker)
     checker.refs(debrief.get("refs"), debrief)
+
+
+def check_explanation(text, label, minimum, where, checker):
+    if len(text.strip()) < minimum:
+        checker.error(
+            "debrief_too_short",
+            f"{label} короче {minimum} знаков ({len(text.strip())}): разбор объясняет, а не отмахивается",
+            where,
+        )
 
 
 def check_ending(node, checker):
@@ -355,6 +400,8 @@ def check_ending(node, checker):
     keys(checker, debrief, "ending_debrief", "debrief концовки")
     if not is_text(debrief.get("summary")):
         checker.error("missing_summary", "в разборе концовки нет summary", debrief)
+    else:
+        check_explanation(debrief["summary"], "summary", checker.limits["why_min"], debrief, checker)
     checker.refs(debrief.get("refs"), debrief)
 
 

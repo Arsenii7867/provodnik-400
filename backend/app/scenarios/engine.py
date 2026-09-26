@@ -25,6 +25,8 @@ class EngineError(Exception):
 
 
 def round_half_away(value):
+    # хвост двоичной дроби (1.15 x 50 = 57.49999...) срезается до округления, иначе половина уходит вниз
+    value = round(value, 9)
     return int(math.copysign(math.floor(abs(value) + 0.5), value))
 
 
@@ -127,12 +129,14 @@ def apply_delayed(state, content, force=False):
     return applied
 
 
-def node_assessment(node):
-    """Максимум положительных очков по каждой компетенции среди всех действий узла: вариантов,
-    включая скрытые условием (скрытый хороший вариант это упущенная возможность), и ветки
-    истечения, чтобы заработанное никогда не превышало оценённое."""
+def node_assessment(scenario, state):
+    """Максимум положительных очков по каждой компетенции среди действий, которые были доступны
+    в узле: показанных вариантов и ветки истечения. Вариант, скрытый классом вагона или прошлым
+    правильным решением, не упущен, поэтому в оценённое не входит; заработанное никогда не
+    превышает оценённое."""
     best = {}
-    actions = list(node.get("options") or [])
+    node = scenario["nodes"][state["node"]]
+    actions = available_options(scenario, state)
     if node.get("timer"):
         actions.append(node["timer"]["on_expire"])
     for action in actions:
@@ -153,6 +157,8 @@ def timer_seconds(node, service_class):
 def transition(scenario, content, state, source, option_id, expired):
     """Один шаг прохождения: source это вариант, узел-событие или ветка on_expire."""
     node = scenario["nodes"][state["node"]]
+    # оценённое считается по состоянию на входе в узел: эффекты хода ещё не применены
+    assessment = node_assessment(scenario, state)
     step = {
         "step_no": state["step_no"] + 1,
         "node_id": state["node"],
@@ -185,7 +191,7 @@ def transition(scenario, content, state, source, option_id, expired):
     for code, value in (source.get("competencies") or {}).items():
         if value > 0:
             state["earned"][code] = state["earned"].get(code, 0) + value
-    for code, value in node_assessment(node).items():
+    for code, value in assessment.items():
         state["assessed"][code] = state["assessed"].get(code, 0) + value
     if node.get("timer"):
         state["expired_timers" if expired else "timers_answered"] += 1
@@ -238,7 +244,7 @@ def outcome(scenario, content, state):
     if forced == "acceptable":
         return "acceptable"
     rule = thresholds["exemplary_if"]
-    timers_ok = state["expired_timers"] == 0 or not rule.get("no_expired_timers", True)
+    timers_ok = state["expired_timers"] == 0 or not rule["no_expired_timers"]
     if state["safety"] >= rule["safety_min"] and state["loyalty"] >= rule["loyalty_min"] and timers_ok:
         return "exemplary"
     return "acceptable"

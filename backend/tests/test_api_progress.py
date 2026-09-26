@@ -29,8 +29,9 @@ from tests.test_api_sessions import (
 )
 
 CONTENT_DIR = Path(__file__).resolve().parents[2] / "content"
-# первый таймер истекает, дальше лучшие ходы, но цепочка без шага «признать» и таймер истёк
-EXPIRED_PATH = ["check_and_radio_chief", "water_and_calm", "pa_medic", "brief_medic_full", "announce_calm"]
+# первый таймер истекает, дальше хорошие, но не лучшие ходы: без признания реплика карточки 28
+# скрыта, цепочка не начата, таймер истёк, безопасность не дотягивает до ачивки safety_first
+EXPIRED_PATH = ["check_and_radio_chief", "ask_history_only", "pa_medic", "brief_medic", "announce_calm"]
 BEST_PATH_ACHIEVEMENTS = {"first_run", "four_steps", "cool_head", "safety_first"}
 NEW_ACHIEVEMENT = """
 - id: loyal_friend
@@ -169,22 +170,23 @@ def test_debrief_has_refs_and_better(client, login):
 
 def test_debrief_shows_delayed_and_competency_delta(client, login):
     headers = login()
-    # уход за начальником поезда обещает вернуться, water_and_calm возвращает: штраф отменён
-    moves = ["run_for_chief", "water_and_calm", "pa_medic", "brief_medic", "announce_calm"]
+    # уход за начальником поезда обещает вернуться, сухое правило у кресла возвращает: штраф отменён
+    moves = ["run_for_chief", "rule_without_acknowledge", "pa_medic", "brief_medic", "announce_calm"]
     view = play(client, headers, moves)
     debrief = debrief_of(client, headers, view)
     applied = [item for step in debrief["steps"] for item in step["delayed_applied"]]
     assert applied == [
         {
-            "text": "Пассажир остался без персонала и испугался ещё сильнее.",
+            "text": "Пассажир и соседка запомнили, что вы убегали: без спокойного разговора у кресла "
+            "доверие не вернулось.",
             "effects": {"loyalty": -10},
             "cancelled": True,
         }
     ]
     delta = {item["code"]: item for item in debrief["competencies_delta"]}
-    # заработано medical: water_and_calm 1, pa_medic 2, brief_medic 1 из оценённых 8
+    # заработано medical: pa_medic 2, brief_medic 1 из оценённых 7 (полный доклад скрыт без расспроса)
     assert delta["medical"]["mastery_before"] is None
-    assert delta["medical"]["mastery_after"] == pytest.approx(4 / 8)
+    assert delta["medical"]["mastery_after"] == pytest.approx(3 / 7)
     assert delta["medical"]["status"] == "few_data"
     assert delta["medical"]["title"] == "Первая помощь и здоровье"
     assert debrief["steps"][3]["best_option"]["id"] == "brief_medic_full"
@@ -226,7 +228,7 @@ def test_outbox_run_completed(client, login, app):
     payload = events[0].payload_json
     assert payload["run_id"] == view["run_id"] and payload["employee_code"] == "VSM-1001"
     assert payload["outcome"] == "exemplary" and payload["xp"] == 185 and payload["role_complete"] is True
-    assert payload["competencies"]["medical"] == {"earned": 7, "assessed": 8} and payload["finished_at"]
+    assert payload["competencies"]["medical"] == {"earned": 8, "assessed": 8} and payload["finished_at"]
 
 
 def test_outbox_cursor_and_ack(client, login, app):
@@ -266,13 +268,13 @@ def test_competencies_updated(client, login, app):
     with app.state.session_factory() as db:
         rows = {row.competency: row for row in db.scalars(select(EmployeeCompetency)).all()}
     medical = rows["medical"]
-    assert (medical.earned_sum, medical.assessed_sum, medical.runs_assessed) == (7, 8, 1)
-    assert rows["medical"].mastery == pytest.approx(7 / 8) and rows["medical"].status == "few_data"
+    assert (medical.earned_sum, medical.assessed_sum, medical.runs_assessed) == (8, 8, 1)
+    assert rows["medical"].mastery == pytest.approx(1.0) and rows["medical"].status == "few_data"
     assert rows["inclusion"].status == "gap" and rows["inclusion"].mastery is None
     profile = client.get("/api/profile", headers=headers).json()
     by_code = {item["code"]: item for item in profile["competencies"]}
     assert [item["code"] for item in profile["competencies"]][:2] == ["empathy", "rules"]
-    assert by_code["medical"]["mastery"] == pytest.approx(7 / 8) and by_code["medical"]["title"]
+    assert by_code["medical"]["mastery"] == pytest.approx(1.0) and by_code["medical"]["title"]
     assert by_code["inclusion"] == {
         "code": "inclusion",
         "title": "Инклюзивность",

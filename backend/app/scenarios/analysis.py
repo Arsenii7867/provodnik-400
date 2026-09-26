@@ -1,6 +1,7 @@
 """Перебор путей сценария теми же функциями движка, что ведут прохождение на сервере, но без
-часов: по итогам валидатор судит о достижимости исходов, условных вариантах, разбросе шкал и
-цене истечения таймеров, а карта сценария берёт число путей."""
+часов: по итогам валидатор судит о достижимости исходов, условных вариантах, разбросе шкал,
+цене истечения таймеров, узлах без выбора и нагрузке чтения, а карта сценария берёт число
+путей. Итог целиком состоит из чисел, строк, списков и словарей, чтобы уходить в JSON как есть."""
 
 import copy
 
@@ -31,7 +32,7 @@ def enumerate_paths(scenario, content, service_class=None, limit=None):
             continue
         node_id = state["node"]
         if any(step["node_id"] == node_id for step in state["steps"]):
-            summary["cycle_hit"] = True
+            # повторный вход в узел бывает только у непроверенного сценария с циклом: путь обрывается
             continue
         for option_id, expired in moves_from(scenario, state, summary):
             branch = copy.deepcopy(state)
@@ -49,7 +50,6 @@ def new_summary(service_class):
         "service_class": service_class,
         "paths": 0,
         "truncated": False,
-        "cycle_hit": False,
         "outcomes": {},
         "loyalty": {"min": None, "max": None},
         "safety": {"min": None, "max": None},
@@ -60,15 +60,19 @@ def new_summary(service_class):
         "shown": set(),
         "hidden": set(),
         "empty_nodes": set(),
+        "single_option_nodes": set(),
+        "option_chars": {},
         "role_chain_paths": 0,
         "potential": {},
+        "delayed_cancelled": set(),
         "timers": {},
     }
 
 
 def moves_from(scenario, state, summary):
     """Возможные действия в текущем узле: continue у события, доступные варианты и истечение
-    таймера у диалога; попутно отмечает показ и скрытие условных вариантов."""
+    таймера у диалога; попутно отмечает показ и скрытие условных вариантов, узлы без выбора и
+    самый длинный набор видимых вариантов."""
     node_id = state["node"]
     node = scenario["nodes"][node_id]
     if node["type"] == "event":
@@ -79,6 +83,10 @@ def moves_from(scenario, state, summary):
             (summary["shown"] if option in options else summary["hidden"]).add((node_id, option["id"]))
     if not options:
         summary["empty_nodes"].add(node_id)
+    elif len(options) == 1:
+        summary["single_option_nodes"].add(node_id)
+    chars = sum(len(option.get("text") or "") for option in options)
+    summary["option_chars"][node_id] = max(summary["option_chars"].get(node_id, 0), chars)
     moves = [(option["id"], False) for option in options]
     if node.get("timer"):
         moves.append((None, True))
@@ -113,6 +121,9 @@ def record_final(summary, scenario, state):
         summary["potential"][code] = max(summary["potential"].get(code, 0), value)
     final = (result, state["loyalty"], state["safety"])
     for step in state["steps"]:
+        for item in step["delayed_applied"]:
+            if item["cancelled"]:
+                summary["delayed_cancelled"].add(item["option_id"])
         if step["timer_seconds"]:
             timer = summary["timers"].setdefault(
                 step["node_id"], {"expired_finals": set(), "answered_finals": set()}
@@ -130,6 +141,13 @@ def finish_summary(summary):
     if summary["reachable_nodes"]:
         summary["corridor_share"] = round(len(common) / len(summary["reachable_nodes"]), 2)
     summary["common_nodes"] = common
+    # множества нужны только при обходе; наружу уходят списки, которые переживают json.dumps
+    for key in ("reachable_nodes", "common_nodes", "shown", "hidden", "empty_nodes", "single_option_nodes"):
+        summary[key] = sorted(summary[key])
+    summary["delayed_cancelled"] = sorted(summary["delayed_cancelled"])
+    for timer in summary["timers"].values():
+        timer["expired_finals"] = sorted(timer["expired_finals"])
+        timer["answered_finals"] = sorted(timer["answered_finals"])
 
 
 def final_key(final):
@@ -147,15 +165,23 @@ def analyze(scenario, content, limit=None):
     никогда показано. own это итог для родного класса сценария."""
     by_class = {code: enumerate_paths(scenario, content, code, limit) for code in content.classes}
     own = by_class[scenario["context"]["service_class"]]
-    shown = set().union(*(item["shown"] for item in by_class.values()))
-    hidden = set().union(*(item["hidden"] for item in by_class.values()))
-    empty = set().union(*(item["empty_nodes"] for item in by_class.values()))
+    option_chars = {}
+    for item in by_class.values():
+        for node_id, chars in item["option_chars"].items():
+            option_chars[node_id] = max(option_chars.get(node_id, 0), chars)
     return {
         "own": own,
         "by_class": by_class,
-        "shown": shown,
-        "hidden": hidden,
-        "empty_nodes": empty,
+        "shown": union_of(by_class, "shown"),
+        "hidden": union_of(by_class, "hidden"),
+        "empty_nodes": union_of(by_class, "empty_nodes"),
+        "single_option_nodes": union_of(by_class, "single_option_nodes"),
+        "delayed_cancelled": union_of(by_class, "delayed_cancelled"),
+        "option_chars": option_chars,
         "role_chain_possible": any(item["role_chain_paths"] > 0 for item in by_class.values()),
         "truncated": any(item["truncated"] for item in by_class.values()),
     }
+
+
+def union_of(by_class, key):
+    return sorted(set().union(*(item[key] for item in by_class.values())))

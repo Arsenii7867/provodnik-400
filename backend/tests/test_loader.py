@@ -73,7 +73,7 @@ def test_duplicate_key_reported(content_copy):
     [error] = content.errors
     assert error["code"] == "duplicate_key"
     assert "estimated_minutes" in error["message"]
-    assert error["line"] == 12
+    assert error["line"] == 14
 
 
 def test_missing_reference_file_reported(content_copy):

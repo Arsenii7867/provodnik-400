@@ -14,7 +14,8 @@ RULES_KEYS = """
     limits.competency_points.min limits.competency_points.max limits.delayed_steps.min
     limits.delayed_steps.max limits.difficulty.min limits.difficulty.max limits.node_text_max
     limits.option_text_max limits.option_text_max_with_timer limits.min_options
-    limits.short_timer_seconds limits.short_timer_options
+    limits.short_timer_seconds limits.short_timer_options limits.timer_reading_rate
+    limits.diverging_min limits.why_min limits.better_min
     analysis.path_limit analysis.many_paths analysis.min_outcomes analysis.min_scale_spread
     analysis.corridor_share
 """.split()

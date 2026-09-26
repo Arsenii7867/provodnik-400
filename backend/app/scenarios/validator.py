@@ -1,34 +1,37 @@
-"""Валидатор контента: форма DSL (schema.py), граф (достижимость, циклы, тупики, ветки
-истечения), флаги, компетенции, разнонаправленность шкал, тексты, а по перебору путей
-(analysis.py) условия показа, исходы, разброс шкал и ролевая цепочка. Запуск из backend:
-python -m app.scenarios.validator ../content [--markdown]. Последняя строка вывода всегда
-«ИТОГ: сценариев=N узлов=M ошибок=E предупреждений=W», код выхода 1 при ошибках."""
+"""Валидатор контента: форма DSL (schema.py), проверки текстов, источников, компетенций, шкал
+и флагов (checks.py), граф (достижимость, циклы, тупики, ветки истечения), а по перебору путей
+(analysis.py) условия показа, исходы, разброс шкал, узлы без выбора, нагрузка чтения под
+таймером и ролевая цепочка. Запуск из backend: python -m app.scenarios.validator ../content
+[--markdown]. Последняя строка вывода всегда «ИТОГ: сценариев=N узлов=M ошибок=E
+предупреждений=W», код выхода 1 при ошибках."""
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
 from app.scenarios import analysis, graph, schema
-from app.scenarios.findings import Checker, Finding, is_int, line_of
+from app.scenarios.checks import (
+    check_competencies,
+    check_flags,
+    check_passenger_voice,
+    check_scale_directions,
+    check_sources,
+    check_texts,
+    iter_actions,
+)
+from app.scenarios.engine import timer_seconds
+from app.scenarios.findings import Checker, Finding, is_int
 from app.scenarios.loader import check_references, load_content
 from app.scenarios.report import format_finding, markdown_tables, outcome_summary, relative, scenario_stats
 from app.scenarios.schema import all_option_ids
 
-DASHES = (chr(0x2014), chr(0x2013))
-# пометки незаконченного текста собираются из частей, чтобы проверка репозитория не ловила сам валидатор
-STUB_WORDS = tuple(
-    "".join(parts) for parts in (("TO", "DO"), ("FIX", "ME"), ("XX", "X"), ("place", "holder"))
-)
-STUB_PATTERN = re.compile(r"\b(" + "|".join(STUB_WORDS) + r")\b", re.IGNORECASE)
-FULL_NAME = re.compile(
-    r"[А-ЯЁ][а-яё]+\s+[А-ЯЁ]\.\s?[А-ЯЁ]\.|[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+(?:ович|евич|овна|евна|ична)\b"
-)
 # после этих ошибок перебор путей невозможен или бессмыслен
 STRUCTURAL = set(
     "schema unknown_node cycle dead_end ending_unreachable unknown_class timer_without_expire "
     "duplicate_option_id".split()
 )
+# без этих справочников движок не может применить ход, поэтому сценарии при их поломке не проверяются
+ENGINE_BOOKS = ("rules.yaml", "classes.yaml")
 
 
 def check_scenario(scenario, content, file_stem=""):
@@ -45,6 +48,8 @@ def check_scenario(scenario, content, file_stem=""):
         schema.check_node(node_id, node, scenario, checker)
     checker.node = checker.option = None
     check_texts(scenario, checker)
+    check_passenger_voice(scenario, checker)
+    check_sources(scenario, checker)
     check_competencies(scenario, checker)
     check_scale_directions(scenario, checker)
     check_flags(scenario, checker)
@@ -66,145 +71,6 @@ def check_duplicate_options(scenario, checker):
                 "duplicate_option_id", f"id варианта «{option_id}» встречается дважды", scenario["nodes"]
             )
         seen.add(option_id)
-
-
-def check_texts(scenario, checker):
-    for text, node_id, option_id, where in iter_texts(scenario):
-        checker.node, checker.option = node_id, option_id
-        if any(dash in text for dash in DASHES):
-            checker.error(
-                "dash_in_text", "тире в тексте: замените запятой, двоеточием или словом «это»", where
-            )
-        if STUB_PATTERN.search(text):
-            checker.error("stub_in_text", "в тексте пометка незаконченной работы", where)
-        if FULL_NAME.search(text):
-            checker.error(
-                "full_name_in_text", "в тексте похоже на ФИО; пассажиров называем местом и приметой", where
-            )
-    checker.node = checker.option = None
-
-
-def iter_texts(scenario):
-    """Все строки сценария с узлом и вариантом, внутри которых они встретились."""
-    yield from walk_texts(scenario, scenario, None, None, None)
-
-
-def walk_texts(scenario, value, node_id, option_id, where):
-    if isinstance(value, dict):
-        where = value if line_of(value) else where
-        for key, item in value.items():
-            if key == "nodes" and value is scenario and isinstance(item, dict):
-                for inner_id, node in item.items():
-                    yield from walk_texts(scenario, node, inner_id, None, node)
-            elif key == "options" and isinstance(item, list):
-                for option in item:
-                    inner = option.get("id") if isinstance(option, dict) else None
-                    yield from walk_texts(scenario, option, node_id, inner, option)
-            else:
-                yield from walk_texts(scenario, item, node_id, option_id, where)
-    elif isinstance(value, list):
-        for item in value:
-            yield from walk_texts(scenario, item, node_id, option_id, where)
-    elif isinstance(value, str):
-        yield value, node_id, option_id, where
-
-
-def iter_actions(scenario):
-    """Варианты и ветки истечения: всё, у чего есть effects и competencies."""
-    for node_id, node in scenario["nodes"].items():
-        if not isinstance(node, dict):
-            continue
-        for option in node.get("options") or []:
-            if isinstance(option, dict):
-                yield node_id, option.get("id"), option
-        timer = node.get("timer")
-        if isinstance(timer, dict) and isinstance(timer.get("on_expire"), dict):
-            yield node_id, None, timer["on_expire"]
-
-
-def check_competencies(scenario, checker):
-    known = {item.get("code") for item in checker.content.competencies if isinstance(item, dict)}
-    declared = scenario.get("competencies") if isinstance(scenario.get("competencies"), list) else []
-    for code in declared:
-        if code not in known:
-            checker.error("unknown_competency", f"компетенции «{code}» нет в competencies.yaml", scenario)
-    used = {}
-    for node_id, option_id, action in iter_actions(scenario):
-        for code in (
-            (action.get("competencies") or {}) if isinstance(action.get("competencies"), dict) else ()
-        ):
-            used.setdefault(code, (node_id, option_id, action))
-    for code, (node_id, option_id, action) in used.items():
-        checker.node, checker.option = node_id, option_id
-        if code not in known:
-            checker.error("unknown_competency", f"компетенции «{code}» нет в competencies.yaml", action)
-        elif code not in declared:
-            checker.error("competency_not_declared", f"компетенция «{code}» не заявлена в сценарии", action)
-    checker.node = checker.option = None
-    for code in declared:
-        if code in known and code not in used:
-            checker.error(
-                "competency_unused", f"заявленная компетенция «{code}» не встречается в эффектах", scenario
-            )
-
-
-def check_scale_directions(scenario, checker):
-    diverging = loyalty_only = safety_only = False
-    for _, _, action in iter_actions(scenario):
-        effects = action.get("effects") if isinstance(action.get("effects"), dict) else {}
-        loyalty, safety = effects.get("loyalty", 0), effects.get("safety", 0)
-        if not is_int(loyalty) or not is_int(safety):
-            continue
-        diverging |= loyalty * safety < 0
-        loyalty_only |= loyalty != 0 and safety == 0
-        safety_only |= safety != 0 and loyalty == 0
-    if not diverging:
-        checker.error("no_diverging_option", "нет варианта с разнонаправленным влиянием на шкалы", scenario)
-    if not loyalty_only:
-        checker.error("no_loyalty_only_option", "нет варианта, который меняет только лояльность", scenario)
-    if not safety_only:
-        checker.error("no_safety_only_option", "нет варианта, который меняет только безопасность", scenario)
-
-
-def check_flags(scenario, checker):
-    """Флаг, который нигде не читается, декоративен: это ошибка, а не предупреждение."""
-    set_flags = {}
-    read_flags = {}
-    unless_flags = {}
-    start = scenario.get("start") if isinstance(scenario.get("start"), dict) else {}
-    for name in start.get("flags") or {}:
-        set_flags.setdefault(name, (None, None, start))
-    for node_id, node in scenario["nodes"].items():
-        if isinstance(node, dict) and isinstance(node.get("set_flags"), dict):
-            for name in node["set_flags"]:
-                set_flags.setdefault(name, (node_id, None, node))
-    for node_id, option_id, action in iter_actions(scenario):
-        for name in action.get("set_flags") or {} if isinstance(action.get("set_flags"), dict) else ():
-            set_flags.setdefault(name, (node_id, option_id, action))
-        when = action.get("when") if isinstance(action.get("when"), dict) else {}
-        names = list(when.get("flags_all") or {}) if isinstance(when.get("flags_all"), dict) else []
-        names += list(when.get("flags_none") or []) if isinstance(when.get("flags_none"), list) else []
-        for name in names:
-            read_flags.setdefault(name, (node_id, option_id, action))
-        for item in action.get("delayed") or [] if isinstance(action.get("delayed"), list) else ():
-            if isinstance(item, dict) and isinstance(item.get("unless_flags"), dict):
-                for name in item["unless_flags"]:
-                    unless_flags.setdefault(name, (node_id, option_id, item))
-    for name, (node_id, option_id, where) in set_flags.items():
-        if name not in read_flags and name not in unless_flags:
-            checker.node, checker.option = node_id, option_id
-            checker.error("flag_never_read", f"флаг «{name}» выставляется, но нигде не читается", where)
-    for name, (node_id, option_id, where) in read_flags.items():
-        if name not in set_flags:
-            checker.node, checker.option = node_id, option_id
-            checker.warning("flag_never_set", f"флаг «{name}» читается, но нигде не выставляется", where)
-    for name, (node_id, option_id, where) in unless_flags.items():
-        if name not in set_flags:
-            checker.node, checker.option = node_id, option_id
-            checker.error(
-                "unless_flag_never_set", f"флаг «{name}» из unless_flags нигде не выставляется", where
-            )
-    checker.node = checker.option = None
 
 
 def check_graph(scenario, checker):
@@ -310,7 +176,24 @@ def check_paths(scenario, checker):
             "на одном из путей узел остаётся без вариантов",
             scenario["nodes"][node_id],
         )
+    for node_id in sorted(result["single_option_nodes"]):
+        checker.node, checker.option = node_id, None
+        checker.error(
+            "single_option_on_path",
+            "на одном из путей в узле остаётся единственный вариант: выбор без выбора",
+            scenario["nodes"][node_id],
+        )
+    for node_id, node in scenario["nodes"].items():
+        if node.get("type") == "ending" and node_id not in own["endings"]:
+            checker.node, checker.option = node_id, None
+            checker.error(
+                "ending_never_reached",
+                f"концовка недостижима ни на одном пути в родном классе «{own['service_class']}»",
+                node,
+            )
     check_expire_cost(scenario, own, checker)
+    check_reading_load(scenario, result["option_chars"], checker)
+    check_delayed_cancellation(scenario, result["delayed_cancelled"], checker)
     checker.node = checker.option = None
     if len(own["outcomes"]) < settings["min_outcomes"]:
         checker.error(
@@ -360,19 +243,61 @@ def check_expire_cost(scenario, own, checker):
             )
 
 
+def check_reading_load(scenario, option_chars, checker):
+    """Под таймером текст узла и видимые варианты должны успевать прочитаться: норма знаков в
+    секунду лежит в rules.yaml, секунды берутся по самому короткому классу."""
+    rate = checker.limits["timer_reading_rate"]
+    for node_id, node in scenario["nodes"].items():
+        timer = node.get("timer") if isinstance(node, dict) else None
+        if not isinstance(timer, dict):
+            continue
+        seconds = [timer_seconds(node, code) for code in checker.content.classes]
+        seconds = [value for value in seconds if is_int(value) and value > 0]
+        if not seconds:
+            continue
+        chars = len(node.get("text") or "") + option_chars.get(node_id, 0)
+        load = round(chars / min(seconds), 1)
+        if load > rate:
+            checker.node, checker.option = node_id, None
+            checker.warning(
+                "timer_reading_load",
+                f"под таймером {min(seconds)} с нужно прочитать {chars} знаков: {load} зн/с при норме {rate}",
+                timer,
+            )
+
+
+def check_delayed_cancellation(scenario, cancelled, checker):
+    """Условие отмены отложенного последствия, которое ни на одном пути не срабатывает,
+    обещает проводнику выход, которого нет."""
+    for node_id, option_id, action in iter_actions(scenario):
+        items = action.get("delayed") if isinstance(action.get("delayed"), list) else []
+        has_unless = any(isinstance(item, dict) and item.get("unless_flags") for item in items)
+        if has_unless and option_id not in cancelled:
+            checker.node, checker.option = node_id, option_id
+            checker.warning(
+                "delayed_never_cancelled",
+                "отложенное последствие ни на одном пути не отменяется флагом из unless_flags",
+                action,
+            )
+
+
 def validate_content(content):
     """Отчёт по всему контенту: ошибки чтения, справочники, находки и перебор по сценариям."""
     report = {"reference_problems": check_references(content), "scenarios": {}, "invalid": []}
-    rules_ok = not any(problem.startswith("rules.yaml") for problem in report["reference_problems"])
+    broken_books = sorted(
+        {
+            problem.split(":")[0]
+            for problem in report["reference_problems"]
+            if problem.startswith(ENGINE_BOOKS)
+        }
+    )
     for scenario_id, scenario in content.scenarios.items():
         path = content.files[scenario_id]
-        if rules_ok:
+        if not broken_books:
             findings, result = check_scenario(scenario, content, path.stem)
         else:
-            findings, result = (
-                [Finding("error", "rules_broken", "сценарий не проверялся: сломан rules.yaml")],
-                None,
-            )
+            message = f"сценарий не проверялся: сломан {', '.join(broken_books)}"
+            findings, result = [Finding("error", "references_broken", message)], None
         valid = not any(item.severity == "error" for item in findings)
         nodes = len(scenario["nodes"]) if valid else 0
         report["scenarios"][scenario_id] = {

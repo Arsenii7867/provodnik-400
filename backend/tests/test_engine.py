@@ -20,6 +20,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 T0 = datetime(2026, 9, 26, 9, 0, tzinfo=UTC)
 GRACE = 1.0
 BEST_PATH = ["call_chief_stay", "water_and_calm", "pa_medic", "brief_medic_full", "announce_calm"]
+BEST_TABLET_PATH = ["acknowledge_ask", "bring_tablet", "move_to_rack", "thank_assure"]
 PURE_MODULES = ["app/scenarios/engine.py", "app/scenarios/rules.py", "app/scenarios/analysis.py"]
 FORBIDDEN_IMPORTS = ("sqlalchemy", "fastapi", "starlette", "pydantic", "app.db", "app.models", "app.main")
 
@@ -61,9 +62,13 @@ def option_ids(scenario, state):
     return [option["id"] for option in engine.available_options(scenario, state)]
 
 
+def option(scenario, node_id, option_id):
+    return next(item for item in scenario["nodes"][node_id]["options"] if item["id"] == option_id)
+
+
 def test_timeout_changes_outcome(medical, content):
     answered, _ = play(medical, content, BEST_PATH)
-    after_expiry = ["expire", "check_and_radio_chief", "water_and_calm", "pa_medic", "brief_medic_full"]
+    after_expiry = ["expire", "check_and_radio_chief", "ask_history_only", "pa_medic", "brief_medic_full"]
     expired, _ = play(medical, content, after_expiry + ["announce_calm"])
     assert answered["outcome"] == "exemplary"
     assert expired["outcome"] == "acceptable"
@@ -72,8 +77,101 @@ def test_timeout_changes_outcome(medical, content):
     assert first["expired"] is True and first["option_id"] is None
     assert first["node_id"] == "intro" and first["next_node"] == "collapsed"
     assert all(option["next"] != "collapsed" for option in medical["nodes"]["intro"]["options"])
-    assert (expired["loyalty"], expired["safety"]) == (72, 80)
+    assert (expired["loyalty"], expired["safety"]) == (59, 90)
     assert (answered["loyalty"], answered["safety"]) == (98, 100)
+
+
+def test_expired_timer_blocks_exemplary(tablet, content):
+    """Правило no_expired_timers решает исход само по себе: путь с истечением, который по шкалам
+    проходит пороги, остаётся приемлемым, а с выключенным правилом в копии rules.yaml становится
+    образцовым."""
+    gentle = copy.deepcopy(tablet)
+    gentle["nodes"]["intro"]["timer"]["on_expire"]["effects"] = {"loyalty": -2}
+    path = ["expire", "continue", "bring_tablet", "move_to_rack", "thank_assure"]
+    state, _ = play(gentle, content, path, "business")
+    thresholds = content.rules["outcome"]["exemplary_if"]
+    assert state["loyalty"] >= thresholds["loyalty_min"] and state["safety"] >= thresholds["safety_min"]
+    assert state["expired_timers"] == 1 and state["outcome"] == "acceptable"
+    lenient = copy.deepcopy(content)
+    lenient.rules["outcome"]["exemplary_if"]["no_expired_timers"] = False
+    relaxed, _ = play(gentle, lenient, path, "business")
+    assert relaxed["outcome"] == "exemplary"
+
+
+def test_exemplary_needs_both_thresholds(tablet, content):
+    high_loyalty = copy.deepcopy(tablet)
+    option(high_loyalty, "luggage", "move_to_rack")["effects"] = {"safety": 5}
+    state, _ = play(high_loyalty, content, BEST_TABLET_PATH, "business")
+    assert state["loyalty"] >= 70 and state["safety"] < 75 and state["outcome"] == "acceptable"
+    high_safety = copy.deepcopy(tablet)
+    option(high_safety, "farewell", "thank_assure")["effects"] = {"loyalty": -20}
+    state, _ = play(high_safety, content, BEST_TABLET_PATH, "business")
+    assert state["safety"] >= 75 and state["loyalty"] < 70 and state["outcome"] == "acceptable"
+
+
+def test_negative_points_do_not_reduce_earned(tablet, content):
+    state, _ = play(tablet, content, ["acknowledge_ask", "give_own_phone"])
+    assert state["earned"] == {"empathy": 2}
+    assert state["assessed"]["rules"] == 2 and "safety" not in state["assessed"]
+
+
+def test_hidden_options_are_not_assessed(tablet, medical, content):
+    """Вариант, скрытый классом или прошлым верным решением, не упущен: в стандарт-классе планшет
+    не считается оценённым, а в эталоне лучший путь даёт полное владение по всем компетенциям."""
+    standard, _ = play(tablet, content, ["acknowledge_ask", "explain_class"])
+    business, _ = play(tablet, content, ["acknowledge_ask", "explain_class"], "business")
+    assert "solution" not in standard["assessed"]
+    assert business["assessed"]["solution"] == 2
+    best, _ = play(medical, content, BEST_PATH)
+    for code in medical["competencies"]:
+        assert best["earned"][code] == best["assessed"][code] > 0, code
+
+
+def test_every_when_key_is_enforced(tablet, content):
+    """Каждый ключ условия показа читается движком: not_chosen, loyalty_max и safety_min тоже."""
+    gated = copy.deepcopy(tablet)
+    option(gated, "request", "give_own_phone")["when"] = {"not_chosen": ["acknowledge_ask"]}
+    polite, _ = play(gated, content, ["acknowledge_ask"])
+    rude, _ = play(gated, content, ["refuse_flat"])
+    assert "give_own_phone" not in option_ids(gated, polite)
+    assert "give_own_phone" in option_ids(gated, rude)
+    capped = copy.deepcopy(tablet)
+    option(capped, "request", "give_own_phone")["when"] = {"loyalty_max": 40}
+    polite, _ = play(capped, content, ["acknowledge_ask"])
+    rude, _ = play(capped, content, ["refuse_flat"])
+    assert "give_own_phone" not in option_ids(capped, polite)
+    assert "give_own_phone" in option_ids(capped, rude)
+    guarded = copy.deepcopy(tablet)
+    option(guarded, "luggage", "leave_in_aisle")["when"] = {"safety_min": 60}
+    safe, _ = play(guarded, content, ["acknowledge_ask", "explain_class", "offer_wifi"])
+    risky, _ = play(guarded, content, ["acknowledge_ask", "give_own_phone"])
+    assert "leave_in_aisle" in option_ids(guarded, safe)
+    assert "leave_in_aisle" not in option_ids(guarded, risky)
+
+
+def test_forced_acceptable_and_start_flags(tablet, content):
+    capped = copy.deepcopy(tablet)
+    capped["nodes"]["ending_calm"]["forced_outcome"] = "acceptable"
+    state, _ = play(capped, content, BEST_TABLET_PATH, "business")
+    assert state["loyalty"] >= 70 and state["safety"] >= 75 and state["outcome"] == "acceptable"
+    flagged = copy.deepcopy(tablet)
+    flagged["start"]["flags"] = {"returned": True}
+    option(flagged, "request", "give_own_phone")["when"] = {"flags_all": {"returned": True}}
+    state, _ = play(flagged, content, ["acknowledge_ask"])
+    assert state["flags"] == {"returned": True}
+    assert "give_own_phone" in option_ids(flagged, state)
+
+
+def test_fractional_sensitivity_rounds_half_up(tablet, content):
+    """Чувствительность 1.15 даёт 1.15 x 50 = 57.49999 в двоичной дроби: округление обязано дать
+    58, как посчитает жюри на бумаге."""
+    tuned = copy.deepcopy(content)
+    tuned.classes["standard"]["loyalty_sensitivity"] = 1.15
+    generous = copy.deepcopy(tablet)
+    generous["start"]["loyalty"] = 40
+    option(generous, "intro", "acknowledge_ask")["effects"] = {"loyalty": 50}
+    state, _ = play(generous, tuned, ["acknowledge_ask"])
+    assert state["loyalty"] == 40 + 58
 
 
 def test_scales_diverge_on_choice(medical, content):
@@ -86,7 +184,7 @@ def test_scales_diverge_on_choice(medical, content):
 
 def test_flag_gates_choice_later(medical, content):
     with_chief, _ = play(medical, content, ["call_chief_stay", "water_and_calm"])
-    without, _ = play(medical, content, ["finish_trolley_first", "water_and_calm"])
+    without, _ = play(medical, content, ["finish_trolley_first", "ask_history_only"])
     assert with_chief["node"] == without["node"] == "help_options"
     assert "pa_medic" in option_ids(medical, with_chief)
     assert "radio_chief_late" not in option_ids(medical, with_chief)
@@ -215,14 +313,14 @@ def test_class_changes_options_and_effects(tablet, content):
 
 def test_timer_seconds_by_class(tablet, medical, content):
     assert engine.start(tablet, content, T0)["deadline_at"] == T0 + timedelta(seconds=40)
-    assert engine.start(tablet, content, T0, "first")["deadline_at"] == T0 + timedelta(seconds=10)
+    assert engine.start(tablet, content, T0, "first")["deadline_at"] == T0 + timedelta(seconds=15)
     assert engine.timer_seconds(medical["nodes"]["intro"], "first") == 20
     assert engine.timer_seconds(medical["nodes"]["at_the_seat"], "first") is None
     late = engine.start(tablet, content, T0, "first")
     late, step = engine.apply_choice(
-        tablet, content, late, "acknowledge_ask", T0 + timedelta(seconds=12), GRACE
+        tablet, content, late, "acknowledge_ask", T0 + timedelta(seconds=17), GRACE
     )
-    assert step["expired"] and late["node"] == "ignored" and step["timer_seconds"] == 10
+    assert step["expired"] and late["node"] == "ignored" and step["timer_seconds"] == 15
 
 
 def test_role_chain_bonus(medical, tablet, content):
@@ -283,12 +381,12 @@ def test_delayed_applies_at_ending(medical, content):
 
 
 def test_condition_by_scales_and_chosen(medical, tablet, content):
-    low, _ = play(medical, content, ["give_own_pills", "continue", "water_and_calm"])
+    low, _ = play(medical, content, ["give_own_pills", "continue", "ask_history_only"])
     high, _ = play(medical, content, ["call_chief_stay", "water_and_calm"])
     assert low["node"] == high["node"] == "help_options"
     assert low["safety"] <= 45 < high["safety"]
-    assert "request_unscheduled_stop" in option_ids(medical, low)
-    assert "request_unscheduled_stop" not in option_ids(medical, high)
+    assert "prepare_wheelchair_exit" in option_ids(medical, low)
+    assert "prepare_wheelchair_exit" not in option_ids(medical, high)
     promised, _ = play(tablet, content, ["promise_check"])
     other, _ = play(tablet, content, ["acknowledge_ask"])
     assert "return_with_answer" in option_ids(tablet, promised)
@@ -345,10 +443,10 @@ def test_outcomes_by_thresholds(tablet, medical, content):
 def test_competency_points_per_run(medical, content):
     state, _ = play(medical, content, BEST_PATH)
     assert state["timers_answered"] == 3
-    assert state["earned"]["medical"] == 7
-    # в assessed входят и скрытые условием варианты: упущенный хороший вариант считается
+    assert state["earned"]["medical"] == 8
+    # в assessed входят только показанные варианты: скрытые классом или прошлым верным ходом не упущены
     assert state["assessed"]["medical"] == 8
-    assert state["assessed"]["rules"] == 4
+    assert state["assessed"]["rules"] == 2
 
 
 def test_step_record_is_complete(medical, content):

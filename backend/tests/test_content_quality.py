@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app.scenarios import analysis, engine, validator
+from app.scenarios import analysis, checks, engine, validator
 from app.scenarios.loader import load_content
 
 CONTENT_DIR = Path(__file__).resolve().parents[2] / "content"
@@ -105,9 +105,18 @@ def replay(scenario, content, prefix):
     return state, now
 
 
-def test_has_diverging_and_single_scale_options(scenario):
-    pairs = [effects_of(action) for action in actions(scenario)]
-    assert any(loyalty * safety < 0 for loyalty, safety in pairs), "нет разнонаправленного варианта"
+def options_of(scenario):
+    for node in scenario["nodes"].values():
+        yield from node.get("options") or []
+
+
+def test_has_diverging_and_single_scale_options(scenario, content):
+    """Разнонаправленность это выбор проводника, а не ветка истечения, и обе дельты заметны."""
+    minimum = content.rules["limits"]["diverging_min"]
+    pairs = [effects_of(option) for option in options_of(scenario)]
+    assert any(
+        loyalty * safety < 0 and min(abs(loyalty), abs(safety)) >= minimum for loyalty, safety in pairs
+    ), "нет разнонаправленного варианта"
     assert any(loyalty != 0 and safety == 0 for loyalty, safety in pairs), "нет варианта только по лояльности"
     assert any(safety != 0 and loyalty == 0 for loyalty, safety in pairs), (
         "нет варианта только по безопасности"
@@ -126,12 +135,10 @@ def test_outcomes_and_spread(analyzed, content):
 def test_three_endings_min(scenario, analyzed):
     endings = {node_id for node_id, node in scenario["nodes"].items() if node["type"] == "ending"}
     assert len(endings) >= ENDINGS_MIN
-    reached = set()
-    for summary in analyzed["by_class"].values():
-        reached |= set(summary["endings"])
-    assert reached == endings
-    # профили сравниваются по родному классу сценария: в нём его и проходят
+    # концовки и их профили считаются по родному классу сценария: в нём его и проходят, и в нём
+    # таблица docs/scenarios.md; концовка только для чужого класса это концовка, которой нет
     own = analyzed["own"]["endings"]
+    assert set(own) == endings
     profiles = {
         (item["loyalty"]["min"], item["loyalty"]["max"], item["safety"]["min"], item["safety"]["max"])
         for item in own.values()
@@ -176,7 +183,8 @@ def test_conditions_shown_and_hidden(scenario, analyzed):
     for key in conditional:
         assert key in analyzed["shown"], key
         assert key in analyzed["hidden"], key
-    assert analyzed["empty_nodes"] == set()
+    assert analyzed["empty_nodes"] == []
+    assert analyzed["single_option_nodes"] == []
 
 
 def test_has_condition_or_delayed(scenario):
@@ -225,11 +233,11 @@ def test_refs_and_debrief_complete(scenario, content):
 
 
 def test_texts_clean(scenario):
-    for text, node_id, option_id, _ in validator.iter_texts(scenario):
+    for text, node_id, option_id, _ in checks.iter_texts(scenario):
         where = f"{node_id}/{option_id}: {text[:40]}"
-        assert not any(dash in text for dash in validator.DASHES), where
-        assert not validator.FULL_NAME.search(text), where
-        assert not validator.STUB_PATTERN.search(text), where
+        assert not any(dash in text for dash in checks.DASHES), where
+        assert not checks.FULL_NAME.search(text), where
+        assert not checks.STUB_PATTERN.search(text), where
 
 
 def test_declared_competencies_used(scenario, content):
@@ -250,3 +258,24 @@ def test_scenario_shape(scenario, analyzed):
 def test_validator_finds_no_errors(scenario, content):
     findings = validator.validate_scenario(scenario, content, scenario["id"])
     assert [item for item in findings if item.severity == "error"] == []
+
+
+def tokens(text):
+    return {word.strip(".,;:«»!?").lower() for word in text.split() if len(word) > 3}
+
+
+def test_option_texts_not_cloned_between_scenarios(content):
+    """Одинаковые по словам варианты в разных сценариях выдают сценарии, склеенные из одного
+    шаблона: сходство по Жаккару выше половины между двумя сценариями это провал."""
+    texts = {
+        scenario_id: [(option["id"], tokens(option["text"])) for option in options_of(scenario)]
+        for scenario_id, scenario in content.scenarios.items()
+    }
+    ids = sorted(texts)
+    for index, first in enumerate(ids):
+        for second in ids[index + 1 :]:
+            for first_id, first_words in texts[first]:
+                for second_id, second_words in texts[second]:
+                    union = first_words | second_words
+                    share = len(first_words & second_words) / len(union) if union else 0.0
+                    assert share <= 0.5, f"{first}/{first_id} повторяет {second}/{second_id}: {share:.2f}"

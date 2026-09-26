@@ -1,6 +1,7 @@
 """Перебор путей эталонного сценария: число путей и исходов, разброс шкал, условия показа,
 концовки по классам и сравнение финалов с истечением и без."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,7 @@ def result(scenario, content):
 
 def test_paths_and_outcomes_of_reference(result):
     own = result["own"]
-    assert own["paths"] == 411
+    assert own["paths"] == 512
     assert not own["truncated"]
     assert set(own["outcomes"]) == {"exemplary", "acceptable", "incident"}
     assert set(own["endings"]) == {"ending_station_medics", "ending_help_late", "ending_incident_pills"}
@@ -51,14 +52,21 @@ def test_conditions_shown_and_hidden(result):
     ]:
         assert key in result["shown"]
         assert key in result["hidden"]
-    assert result["empty_nodes"] == set()
+    assert result["empty_nodes"] == []
 
 
 def test_every_class_is_enumerated(result, content):
     assert set(result["by_class"]) == set(content.classes)
     # чувствительность класса меняет только лояльность, поэтому число путей одинаково
-    assert {item["paths"] for item in result["by_class"].values()} == {411}
+    assert {item["paths"] for item in result["by_class"].values()} == {512}
     assert result["role_chain_possible"]
+
+
+def test_summary_is_json_serializable(result):
+    """Отчёт перебора уходит в API как есть: множеств и кортежей внутри быть не должно."""
+    text = json.dumps(result, ensure_ascii=False)
+    assert '"single_option_nodes": []' in text
+    assert result["delayed_cancelled"] == ["ask_neighbors_help", "run_for_chief"]
 
 
 def test_timers_collect_finals_with_and_without_expiry(result):

@@ -38,7 +38,7 @@ def test_graph_nodes_and_expire_edges(built, content):
     assert by_id["intro"]["timer_seconds"] == 20
     assert by_id["ending_station_medics"]["type"] == "ending"
     assert by_id["ending_station_medics"]["label"] == "Скорая у вагона"
-    assert built["paths"] == 411
+    assert built["paths"] == 512
     assert built["scale_ranges"]["safety"]["min"] == 0
 
 
