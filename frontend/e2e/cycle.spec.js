@@ -76,10 +76,21 @@ test('новый сотрудник проходит сценарий с ист�
   await page.getByRole('link', { name: 'Перейти к разбору' }).click();
   await expect(page).toHaveURL(/\/debrief\/\d+$/);
 
-  // покадровый разбор: шаг истечения с «как лучше», стрелки по обеим шкалам, цитаты норм
+  // покадровый разбор: шаг истечения с «как лучше», стрелки по обеим шкалам с числами из API,
+  // цитаты норм
+  const token = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+  const auth = { Authorization: `Bearer ${token}` };
+  const runId = page.url().match(/\/debrief\/(\d+)$/)[1];
+  const debrief = await (await request.get(`/api/runs/${runId}/debrief`, { headers: auth })).json();
   const steps = page.locator('.debrief-step');
   await expect(steps.first()).toBeVisible();
-  expect(await steps.count()).toBeGreaterThanOrEqual(3);
+  expect(await steps.count()).toBe(debrief.steps.length);
+  expect(debrief.steps.length).toBeGreaterThanOrEqual(3);
+  const firstArrows = steps.first().locator('.effect-arrow');
+  await expect(firstArrows.first().locator('.effect-before')).toHaveText(String(debrief.steps[0].loyalty_before));
+  await expect(firstArrows.first().locator('.effect-after')).toHaveText(String(debrief.steps[0].loyalty_after));
+  await expect(firstArrows.nth(1).locator('.effect-before')).toHaveText(String(debrief.steps[0].safety_before));
+  await expect(firstArrows.nth(1).locator('.effect-after')).toHaveText(String(debrief.steps[0].safety_after));
   const expired = page.locator('.debrief-step.step-expired');
   await expect(expired).toHaveCount(1);
   await expect(expired).toContainText('Таймер истёк');
@@ -107,13 +118,21 @@ test('новый сотрудник проходит сценарий с ист�
   await page.getByRole('button', { name: 'Прочитать все' }).click();
   await expect(page.locator('.topnav .unread-badge')).toHaveCount(0);
 
-  // лидерборд: своя строка закреплена, охват переключается
+  // профиль: достижение получено, остальные заблокированы с текстом правила, прохождение в истории
+  await page.goto('/profile');
+  await expect(page.locator('.achievement-earned')).toContainText('Первый рейс');
+  await expect(page.locator('.achievement-locked .achievement-rule').first()).toContainText('Правило');
+  await expect(page.locator('.runs-table tbody tr')).toHaveCount(1);
+
+  // лидерборд: в бригаде своя строка в таблице, в компании один результат не входит в двадцатку,
+  // и строка закрепляется внизу
   await page.goto('/leaderboard');
   await expect(page.locator('.scope-title')).toContainText('Бригада');
   await expect(page.locator('.board-me')).toContainText(code);
   await page.getByRole('button', { name: 'Компания' }).click();
   await expect(page.locator('.scope-title')).toHaveText('Компания');
-  await expect(page.locator('.board-me')).toContainText(code);
+  await expect(page.locator('.board-pinned')).toContainText(code);
+  await expect(page.locator('.board-gap')).toBeVisible();
 
   // аналитика: радар с осью на каждую компетенцию из ответа
   await page.goto('/analytics');
@@ -122,15 +141,37 @@ test('новый сотрудник проходит сценарий с ист�
   expect(axes).toBe(await page.locator('.radar-legend li').count());
   expect(axes).toBeGreaterThan(0);
 
-  // карта сценария открылась после прохождения, узлов столько же, сколько в ответе API
-  const token = await page.evaluate(() => localStorage.getItem('provodnik.token'));
-  const graph = await request.get(`/api/scenarios/${SCENARIO}/graph`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  // карта сценария открылась после прохождения: узлов, таймеров и покрашенных концовок столько
+  // же, сколько в ответе API
+  const graph = await request.get(`/api/scenarios/${SCENARIO}/graph`, { headers: auth });
   expect(graph.status()).toBe(200);
   const nodes = (await graph.json()).nodes;
   await page.goto(`/scenarios/${SCENARIO}/map`);
   await expect(page.locator('svg.graph')).toBeVisible();
   await expect(page.locator('.graph-node')).toHaveCount(nodes.length);
   await expect(page.locator('.graph-timer')).toHaveCount(nodes.filter((node) => node.timer_seconds).length);
+  const endings = nodes.filter((node) => node.type === 'ending');
+  expect(endings.length).toBeGreaterThan(1);
+  await expect(page.locator('[class*="graph-outcome-"]')).toHaveCount(endings.length);
+});
+
+test('наставник видит бригаду первым экраном, а в рейтинге не участвует', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByRole('button', { name: /VSM-2001/ }).click();
+  await page.getByLabel('PIN').fill(process.env.DEMO_PIN || '1234');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Бригада и уведомления');
+  await expect(page.getByRole('heading', { name: 'Моя бригада' })).toBeVisible();
+
+  await page.goto('/analytics');
+  await expect(page.getByRole('button', { name: 'Бригада' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.team-table').first()).toBeVisible();
+  await expect(page.locator('svg.radar')).toBeVisible();
+
+  await page.goto('/leaderboard');
+  await expect(page.getByText('Наставник в рейтинге не участвует')).toBeVisible();
+  await expect(page.locator('.board-me')).toHaveCount(0);
+
+  await page.goto(`/scenarios/${SCENARIO}/map`);
+  await expect(page.locator('svg.graph')).toBeVisible();
 });
