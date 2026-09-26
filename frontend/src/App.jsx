@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import Layout from './components/Layout.jsx';
 import { getToken } from './lib/api.js';
+import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import CatalogPage from './pages/CatalogPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import DebriefPage from './pages/DebriefPage.jsx';
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/debrief/:runId" element={<DebriefPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

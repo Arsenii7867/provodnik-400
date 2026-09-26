@@ -51,6 +51,7 @@ export default function Layout() {
             <NavLink to="/scenarios">Сценарии</NavLink>
             <NavLink to="/profile">Профиль</NavLink>
             <NavLink to="/leaderboard">Лидерборд</NavLink>
+            <NavLink to="/analytics">Аналитика</NavLink>
           </nav>
           <div className="topbar-user">
             {employee && (
