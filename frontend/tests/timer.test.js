@@ -7,6 +7,8 @@ import {
   parseServerTime,
   remainingMs,
   remainingSeconds,
+  ringOffset,
+  scaleDelta,
   timerShare,
 } from '../src/lib/timer.js';
 
@@ -52,4 +54,25 @@ test('доля кольца таймера ограничена диапазон
   assert.equal(timerShare(30, 20), 1);
   assert.equal(timerShare(-1, 20), 0);
   assert.equal(timerShare(5, 0), 0);
+});
+
+test('смещение штриха кольца: полный таймер без пропуска, истёкший скрыт целиком', () => {
+  assert.equal(ringOffset(20, 20, 300), 0);
+  assert.equal(ringOffset(5, 20, 300), 225);
+  assert.equal(ringOffset(0, 20, 300), 300);
+});
+
+test('часы браузера отстают от сервера: остаток всё равно тает по серверному времени', () => {
+  const clientNow = Date.parse('2026-09-26T09:59:00Z');
+  const offset = clockOffset(serverNow, clientNow);
+  assert.equal(offset, 60000);
+  assert.equal(remainingSeconds(deadline, clientNow, offset), 20);
+  assert.equal(remainingSeconds(deadline, clientNow + 20000, offset), 0);
+});
+
+test('дельта шкалы после хода и отсутствие хода', () => {
+  assert.equal(scaleDelta(60, 70), 10);
+  assert.equal(scaleDelta(70, 55), -15);
+  assert.equal(scaleDelta(null, 70), null);
+  assert.equal(scaleDelta(60, undefined), null);
 });

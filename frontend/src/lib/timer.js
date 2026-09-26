@@ -35,3 +35,15 @@ export function timerShare(remaining, total) {
   }
   return Math.min(1, Math.max(0, remaining / total));
 }
+
+export function ringOffset(remaining, total, circumference) {
+  // кольцо рисуется одним штрихом длиной в окружность; чем меньше остаток, тем больше пропуск
+  return circumference * (1 - timerShare(remaining, total));
+}
+
+export function scaleDelta(before, after) {
+  if (before === null || before === undefined || after === null || after === undefined) {
+    return null;
+  }
+  return after - before;
+}

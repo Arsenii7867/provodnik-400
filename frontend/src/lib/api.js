@@ -1,7 +1,12 @@
 // Единственная точка обращения к серверу: токен входа, JSON и разбор единого формата ошибок
 // {"error": {"code", "message", "details"}}. Компоненты получают данные только отсюда.
+// Каждый ответ с полем server_now обновляет смещение часов, по которому считается таймер.
+
+import { clockOffset } from './timer.js';
 
 const TOKEN_KEY = 'provodnik.token';
+
+let serverOffsetMs = 0;
 
 export class ApiError extends Error {
   constructor(status, code, message, details) {
@@ -24,11 +29,21 @@ export function setToken(token) {
   }
 }
 
+export function getServerOffset() {
+  return serverOffsetMs;
+}
+
 function parseJson(text) {
   try {
     return JSON.parse(text);
   } catch {
     return null;
+  }
+}
+
+function rememberServerTime(data) {
+  if (data && typeof data.server_now === 'string') {
+    serverOffsetMs = clockOffset(data.server_now, Date.now());
   }
 }
 
@@ -54,8 +69,13 @@ async function request(method, path, body, extraHeaders = {}) {
   if (!response.ok) {
     const error = (data && data.error) || {};
     const message = error.message || `Сервер ответил ошибкой ${response.status}`;
+    // просроченный или отозванный токен бесполезен: убираем его, чтобы экраны отправили на вход
+    if (response.status === 401 && token && String(error.code).startsWith('token_')) {
+      setToken(null);
+    }
     throw new ApiError(response.status, error.code || 'http_error', message, error.details);
   }
+  rememberServerTime(data);
   return data;
 }
 
