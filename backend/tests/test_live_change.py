@@ -106,3 +106,32 @@ def test_live_change_adds_branch(settings, tmp_path):
         assert moved.json()["node"]["id"] == "at_the_seat"
         assert moved.json()["last_step"]["role_step"] == "acknowledge"
         assert client.get("/api/health").json()["content_errors"] == 0
+
+
+def test_idempotent_start_survives_changed_default_class(settings, tmp_path):
+    content_dir = tmp_path / "content"
+    shutil.copytree(CONTENT_DIR, content_dir)
+    app = create_app(dataclasses.replace(settings, content_dir=content_dir))
+    with TestClient(app) as client:
+        credentials = {"employee_code": "VSM-1001", "pin": settings.demo_pin}
+        token = client.post("/api/auth/login", json=credentials).json()["token"]
+        headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": "before-class-edit"}
+        body = {"scenario_id": SCENARIO}
+        first = client.post("/api/sessions", json=body, headers=headers)
+        assert first.status_code == 201
+        assert first.json()["context"]["service_class"] == "business"
+
+        path = content_dir / "scenarios" / f"{SCENARIO}.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("service_class: business", "service_class: standard", 1),
+            encoding="utf-8",
+        )
+        bump_mtime(path)
+        assert app.state.store.scenario(SCENARIO)["context"]["service_class"] == "standard"
+        replay = client.post("/api/sessions", json=body, headers=headers)
+        assert replay.status_code == 200
+        assert replay.json()["run_id"] == first.json()["run_id"]
+        assert replay.json()["context"]["service_class"] == "business"
+        conflict = client.post("/api/sessions", json=body | {"service_class": "standard"}, headers=headers)
+        assert conflict.status_code == 409
+        assert conflict.json()["error"]["code"] == "idempotency_mismatch"

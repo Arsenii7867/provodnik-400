@@ -1,6 +1,7 @@
 """Настройки сервера из переменных окружения. Список переменных и значения по умолчанию
 совпадают с .env.example в корне репозитория; ничего другого код из окружения не читает."""
 
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,18 +41,26 @@ def load_settings() -> Settings:
     defaults = Settings()
     app_env = env.get("APP_ENV", defaults.app_env)
     api_key = env.get("INTEGRATION_API_KEY", "" if app_env == "prod" else defaults.integration_api_key)
-    if app_env == "prod" and not api_key:
+    if app_env == "prod" and api_key.strip() in ("", defaults.integration_api_key):
         raise RuntimeError("В prod задайте INTEGRATION_API_KEY: демо-ключ там не действует")
     demo_pin = env.get("DEMO_PIN", defaults.demo_pin)
     if app_env == "prod" and demo_pin == defaults.demo_pin:
         # иначе сид молча создал бы в prod демо-аккаунты с PIN, который напечатан в README
         raise RuntimeError("В prod задайте свой DEMO_PIN: значение по умолчанию известно всем")
     grace = float(env.get("TIMER_GRACE_SECONDS", defaults.timer_grace_seconds))
+    if not math.isfinite(grace):
+        raise RuntimeError("TIMER_GRACE_SECONDS должно быть конечным числом")
     if grace < 0:
         # отрицательный допуск перевернул бы окно: поздний выбор считался бы ранним истечением
         raise RuntimeError("TIMER_GRACE_SECONDS не может быть отрицательным")
     if grace > MAX_GRACE_SECONDS:
         raise RuntimeError(f"TIMER_GRACE_SECONDS не больше {MAX_GRACE_SECONDS:g}: иначе таймер решает клиент")
+    ttl = int(env.get("TOKEN_TTL_HOURS", defaults.token_ttl_hours))
+    login_limit = int(env.get("LOGIN_RATE_PER_MINUTE", defaults.login_rate_per_minute))
+    if ttl <= 0:
+        raise RuntimeError("TOKEN_TTL_HOURS должно быть больше нуля")
+    if login_limit <= 0:
+        raise RuntimeError("LOGIN_RATE_PER_MINUTE должно быть больше нуля")
     return Settings(
         database_url=env.get("DATABASE_URL", defaults.database_url),
         content_dir=resolve_path(env["CONTENT_DIR"]) if "CONTENT_DIR" in env else defaults.content_dir,
@@ -62,8 +71,8 @@ def load_settings() -> Settings:
         frontend_dist=resolve_path(env["FRONTEND_DIST"])
         if "FRONTEND_DIST" in env
         else defaults.frontend_dist,
-        token_ttl_hours=int(env.get("TOKEN_TTL_HOURS", defaults.token_ttl_hours)),
+        token_ttl_hours=ttl,
         timer_grace_seconds=grace,
-        login_rate_per_minute=int(env.get("LOGIN_RATE_PER_MINUTE", defaults.login_rate_per_minute)),
+        login_rate_per_minute=login_limit,
         demo_pin=demo_pin,
     )

@@ -17,8 +17,9 @@ logger = logging.getLogger("provodnik")
 class ContentStore:
     def __init__(self, content_dir):
         self.content_dir = Path(content_dir)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.stamps = None
+        self.reported_ids = None
         self.loaded = Content()
         self.analyses = {}
         self.sources = {}
@@ -77,16 +78,18 @@ class ContentStore:
 
     def reload(self):
         """Принудительное перечитывание с отчётом о том, что появилось и что пропало."""
-        before = set(self.loaded.scenarios)
-        self.refresh(force=True)
-        after = set(self.loaded.scenarios)
-        return {
-            "loaded": sorted(after),
-            "new": sorted(after - before),
-            "removed": sorted(before - after),
-            "errors": list(self.error_items),
-            "summary": self.summary,
-        }
+        with self.lock:
+            before = self.reported_ids or set()
+            self.refresh(force=True)
+            after = set(self.loaded.scenarios)
+            self.reported_ids = after
+            return {
+                "loaded": sorted(after),
+                "new": sorted(after - before),
+                "removed": sorted(before - after),
+                "errors": list(self.error_items),
+                "summary": self.summary,
+            }
 
     def read_all(self):
         content, report = validator.load_validated(self.content_dir)
@@ -97,6 +100,9 @@ class ContentStore:
             logger.error("контент: сервер работает на прежней версии, пока ошибки не исправлены")
         else:
             self.loaded = content
+            # Автообновление каталога не должно поглощать новые сценарии до рассылки.
+            if self.reported_ids is None:
+                self.reported_ids = set(content.scenarios)
             valid = {key: entry for key, entry in report["scenarios"].items() if entry["valid"]}
             self.analyses = {key: entry["analysis"] for key, entry in valid.items()}
             self.sources = {key: read_text(entry["file"]) for key, entry in valid.items()}

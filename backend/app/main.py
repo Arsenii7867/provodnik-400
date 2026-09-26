@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi_offline import FastAPIOffline
+from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 from app import __version__, clock
@@ -28,9 +29,11 @@ from app.api import (
     scenarios,
     sessions,
 )
+from app.auth import verify_pin
 from app.config import Settings, load_settings
 from app.db import make_engine, prepare_database
 from app.errors import MESSAGES_BY_STATUS, ApiError, error_response, install_error_handlers
+from app.models import Employee
 from app.scenarios.store import ContentStore
 from app.seed import seed
 
@@ -58,13 +61,20 @@ MAX_BODY_BYTES = 1_000_000
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = app.state.settings
-    prepare_database(app.state.engine)
-    app.state.store.refresh()
-    if settings.auto_seed:
-        with app.state.session_factory() as db:
-            seed(db, app.state.store, settings, clock.now())
-    yield
-    app.state.engine.dispose()
+    try:
+        prepare_database(app.state.engine)
+        app.state.store.refresh()
+        if settings.auto_seed or settings.app_env == "prod":
+            with app.state.session_factory() as db:
+                if settings.auto_seed:
+                    seed(db, app.state.store, settings, clock.now())
+                if settings.app_env == "prod":
+                    employees = db.scalars(select(Employee).where(Employee.is_synthetic.is_(True)))
+                    if any(verify_pin(employee, Settings().demo_pin) for employee in employees):
+                        raise RuntimeError("В prod нельзя использовать базу с известным демо-PIN 1234")
+        yield
+    finally:
+        app.state.engine.dispose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -142,7 +152,10 @@ def mount_frontend(app: FastAPI, dist: Path):
             raise ApiError(404, "not_found", "Такого адреса нет")
         candidate = (dist / path).resolve() if path else index
         if path and candidate.is_file() and dist.resolve() in candidate.parents:
-            return FileResponse(candidate)
+            file = FileResponse(candidate)
+            if candidate == index.resolve():
+                file.headers["Content-Security-Policy"] = PAGE_CSP
+            return file
         if Path(path).suffix:
             raise ApiError(404, "not_found", "Файла нет")
         page = FileResponse(index)

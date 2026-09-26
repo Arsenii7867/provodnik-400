@@ -48,16 +48,21 @@ def find_by_key(db, employee, idempotency_key):
     )
 
 
+def reuse_run(existing, scenario_id, service_class):
+    # Отсутствующий класс уже выбран при старте: живая правка YAML не меняет повтор запроса.
+    if existing.scenario_id != scenario_id or (service_class and existing.service_class != service_class):
+        message = "Этот Idempotency-Key уже использован для другого сценария или класса"
+        raise ApiError(409, "idempotency_mismatch", message, {"scenario_id": existing.scenario_id})
+    return existing, False
+
+
 def start_run(db, store, employee, scenario_id, service_class, idempotency_key, now):
     """Возвращает пару (прохождение, создано ли оно сейчас): повтор с тем же Idempotency-Key
     отдаёт прежнее прохождение, чтобы двойная отправка формы не открывала второе."""
     if idempotency_key:
         existing = find_by_key(db, employee, idempotency_key)
         if existing is not None:
-            if existing.scenario_id != scenario_id:
-                message = "Этот Idempotency-Key уже использован для другого сценария"
-                raise ApiError(409, "idempotency_mismatch", message, {"scenario_id": existing.scenario_id})
-            return existing, False
+            return reuse_run(existing, scenario_id, service_class)
     scenario = store.scenario(scenario_id)
     if scenario is None:
         raise ApiError(404, "scenario_not_found", f"Сценария {scenario_id} нет в каталоге")
@@ -91,7 +96,10 @@ def start_run(db, store, employee, scenario_id, service_class, idempotency_key, 
     except IntegrityError:
         # параллельный повтор с тем же ключом успел первым: отдаём его прохождение
         db.rollback()
-        return find_by_key(db, employee, idempotency_key), False
+        existing = find_by_key(db, employee, idempotency_key) if idempotency_key else None
+        if existing is None:
+            raise
+        return reuse_run(existing, scenario_id, service_class)
     payload = {"scenario_id": scenario_id, "service_class": state["service_class"]}
     action_log.log(db, employee.id, "run_started", "run", run.id, payload, now)
     db.commit()

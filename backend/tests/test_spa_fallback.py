@@ -65,3 +65,10 @@ def test_security_headers_on_every_response(spa_client):
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["X-Frame-Options"] == "DENY"
         assert response.headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_direct_index_has_same_csp(spa_client):
+    root = spa_client.get("/")
+    direct = spa_client.get("/index.html")
+    assert direct.status_code == 200
+    assert direct.headers.get("Content-Security-Policy") == root.headers["Content-Security-Policy"]

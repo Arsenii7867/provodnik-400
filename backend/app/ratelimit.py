@@ -16,11 +16,13 @@ logger = logging.getLogger("provodnik")
 WINDOW = timedelta(minutes=1)
 _attempts = {}
 _lock = threading.Lock()
+_last_cleanup = None
 
 
 def check(key: str, now, limit: int):
     """Резервирует попытку и возвращает её метку; при заполненном окне 429 с Retry-After."""
     with _lock:
+        _cleanup(now)
         attempts = _trim(key, now)
         if len(attempts) < limit:
             attempts.append(now)
@@ -52,6 +54,19 @@ def _trim(key, now):
     return attempts
 
 
+def _cleanup(now):
+    global _last_cleanup
+    if _last_cleanup is not None and now - _last_cleanup < WINDOW:
+        return
+    # Один проход раз в минуту; для нескольких процессов нужен общий TTL-store.
+    expired = [key for key, attempts in _attempts.items() if not attempts or attempts[-1] <= now - WINDOW]
+    for key in expired:
+        del _attempts[key]
+    _last_cleanup = now
+
+
 def reset():
+    global _last_cleanup
     with _lock:
         _attempts.clear()
+        _last_cleanup = None

@@ -5,6 +5,7 @@ import dataclasses
 import shutil
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -47,7 +48,8 @@ def test_reload_mentor_only(client, login):
     assert client.get("/api/admin/scenarios/validate", headers=mentor).json()["loaded"] == report["loaded"]
 
 
-def test_reload_creates_new_scenario_notifications(settings, tmp_path):
+@pytest.mark.parametrize("catalog_reads_first", [False, True])
+def test_reload_creates_new_scenario_notifications(settings, tmp_path, catalog_reads_first):
     content_dir = tmp_path / "content"
     shutil.copytree(CONTENT_DIR, content_dir)
     app = create_app(dataclasses.replace(settings, content_dir=content_dir))
@@ -55,6 +57,10 @@ def test_reload_creates_new_scenario_notifications(settings, tmp_path):
         mentor = login_as(client, "VSM-2001", settings.demo_pin)
         conductor = login_as(client, "VSM-1001", settings.demo_pin)
         make_copy(content_dir, "medical_copy")
+        if catalog_reads_first:
+            listed = client.get("/api/scenarios", headers=conductor)
+            assert listed.status_code == 200
+            assert "medical_copy" in {item["id"] for item in listed.json()}
         report = client.post("/api/admin/scenarios/reload", headers=mentor).json()
         with app.state.session_factory() as db:
             employees = db.scalar(select(Employee.id).order_by(Employee.id.desc()))
