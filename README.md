@@ -32,7 +32,9 @@ npm run build
 | Путь | Что там |
 |---|---|
 | `backend/app` | сервер на FastAPI: настройки, единый формат ошибок, маршруты |
-| `backend/tests` | тесты pytest на временной SQLite |
+| `backend/app/scenarios` | загрузчик, валидатор, перебор путей и граф сценариев |
+| `backend/tests` | тесты pytest на временной SQLite, сломанные сценарии в `tests/fixtures/broken` |
+| `content` | справочники и сценарии в YAML, описание формата в `docs/scenarios.md` |
 | `frontend/src` | интерфейс на React, данные только через `src/lib/api.js` |
 | `frontend/e2e` | сквозные проверки Playwright |
 | `scripts/check.sh` | все проверки одной командой: тесты, ruff, сборка фронта |
