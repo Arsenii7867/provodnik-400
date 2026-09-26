@@ -1,0 +1,53 @@
+# Правила подсчёта: пороги исходов, формула XP, владение компетенциями, сгорание бонусов,
+# границы шкал и пределы, которые проверяет валидатор. Движок и валидатор читают числа
+# отсюда, в коде их нет. Сценарий может переопределить пороги исходов полем outcome_rules.
+
+scales:
+  min: 0
+  max: 100
+
+outcome:
+  incident_if_safety_below: 40
+  exemplary_if:
+    safety_min: 75
+    loyalty_min: 70
+    no_expired_timers: true
+
+xp:
+  base:
+    exemplary: 100
+    acceptable: 60
+    incident: 20
+  scales_divisor: 4          # scales = round((loyalty + safety) / 4), от 0 до 50
+  tempo_per_timer: 5         # за каждый таймер, отвеченный до дедлайна
+  role_bonus: 20             # цепочка acknowledge, rule, solution, assure пройдена в этом порядке
+  repeat_factor: 0.5         # повторное прохождение сценария даёт половину
+
+mastery:
+  window_runs: 10            # владение считается по последним прохождениям
+  weak_below: 0.5            # ниже этого владения компетенция проседает
+  min_runs_assessed: 2       # проседание объявляется не раньше двух оценённых прохождений
+
+bonus:
+  expiring_notice_hours: 48  # за сколько часов до сгорания приходит уведомление
+  challenge_bonus_ttl_hours: 168
+
+limits:                      # пределы DSL сценариев
+  timer_seconds: {min: 5, max: 120}
+  effects: {min: -50, max: 50}
+  competency_points: {min: -3, max: 3}
+  delayed_steps: {min: 1, max: 5}
+  difficulty: {min: 1, max: 5}
+  node_text_max: 600
+  option_text_max: 220
+  option_text_max_with_timer: 120
+  min_options: 2
+  short_timer_seconds: 20    # короче этого таймера четыре и больше вариантов не читаются
+  short_timer_options: 4
+
+analysis:                    # перебор путей валидатором и картой сценария
+  path_limit: 20000
+  many_paths: 5000
+  min_outcomes: 2
+  min_scale_spread: 20
+  corridor_share: 0.6        # выше этой доли общих для всех путей узлов сценарий слишком линеен

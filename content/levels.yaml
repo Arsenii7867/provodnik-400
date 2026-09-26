@@ -1,0 +1,17 @@
+# Уровни сотрудника по накопленному XP: уровень это наибольший порог, не превышающий xp_total.
+
+- id: trainee
+  title: Стажёр
+  threshold: 0
+- id: conductor
+  title: Проводник
+  threshold: 150
+- id: senior
+  title: Старший проводник
+  threshold: 400
+- id: mentor
+  title: Наставник смены
+  threshold: 800
+- id: expert
+  title: Эксперт ВСМ
+  threshold: 1400
