@@ -17,6 +17,20 @@ const baseURL = process.env.BASE_URL || `http://127.0.0.1:${defaultPort}`;
 // иначе тесты идут в установленном Chrome. PW_CHANNEL задаёт канал явно (chrome, msedge).
 const channel = process.env.PW_CHANNEL || (fs.existsSync(chromium.executablePath()) ? undefined : 'chrome');
 
+// Запись демонстрации для README (e2e/demo.spec.js) идёт отдельным проектом с видео и большим
+// окном. Проект появляется только при DEMO_VIDEO=1, чтобы обычный прогон не писал видео и не
+// ждал лишние минуты: DEMO_VIDEO=1 npx playwright test --project demo
+const demoProject = {
+  name: 'demo',
+  testMatch: /demo\.spec\.js/,
+  use: {
+    ...devices['Desktop Chrome'],
+    channel,
+    viewport: { width: 1280, height: 800 },
+    video: { mode: 'on', size: { width: 1280, height: 800 } },
+  },
+};
+
 // Без BASE_URL конфиг сам поднимает сервер на 8010 с отдельной базой и собранным фронтом
 // (нужен npm run build). С BASE_URL проверки идут против уже запущенного сервера.
 export default defineConfig({
@@ -40,5 +54,8 @@ export default defineConfig({
           FRONTEND_DIST: path.resolve(here, 'dist'),
         },
       },
-  projects: [{ name: channel || 'chromium', use: { ...devices['Desktop Chrome'], channel } }],
+  projects: [
+    { name: channel || 'chromium', testIgnore: /demo\.spec\.js/, use: { ...devices['Desktop Chrome'], channel } },
+    ...(process.env.DEMO_VIDEO ? [demoProject] : []),
+  ],
 });
