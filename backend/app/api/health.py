@@ -10,10 +10,11 @@ router = APIRouter(prefix="/api", tags=["Здоровье"])
 @router.get("/health", summary="Состояние сервиса", response_model=HealthResponse)
 def health(request: Request):
     settings = request.app.state.settings
-    # сценарии появятся вместе с загрузчиком контента; до него сервер честно отвечает нулём
+    store = request.app.state.store
     return HealthResponse(
         status="ok",
         version=__version__,
-        scenarios=0,
+        scenarios=len(store.scenarios()),
         db=make_url(settings.database_url).get_backend_name(),
+        content_errors=len(store.errors),
     )

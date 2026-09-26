@@ -1,20 +1,38 @@
-"""Сборка приложения FastAPI: настройки, CORS, обработчики ошибок, маршруты API и раздача
-собранного фронта с того же порта. Запуск: uvicorn app.main:app --host 127.0.0.1 --port 8000."""
+"""Сборка приложения FastAPI: настройки, база, контент в памяти, CORS, обработчики ошибок,
+маршруты API и раздача собранного фронта с того же порта. Таблицы и начальные данные создаются
+при старте, а не при импорте. Запуск: uvicorn app.main:app --host 127.0.0.1 --port 8000."""
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import sessionmaker
 
-from app import __version__
-from app.api import health
+from app import __version__, clock
+from app.api import auth, health, scenarios, sessions
 from app.config import Settings, load_settings
+from app.db import make_engine, prepare_database
 from app.errors import ApiError, install_error_handlers
+from app.scenarios.store import ContentStore
+from app.seed import seed
 
 # эти префиксы обслуживает сам сервер, для них фолбэк на index.html не нужен
 SERVER_PREFIXES = ("api", "docs", "redoc", "openapi.json")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = app.state.settings
+    prepare_database(app.state.engine)
+    if settings.auto_seed:
+        with app.state.session_factory() as db:
+            seed(db, settings, clock.now())
+    app.state.store.refresh()
+    yield
+    app.state.engine.dispose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -23,8 +41,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="Проводник 400",
         description="Тренажёр нештатных ситуаций для проводников ВСМ-400.",
         version=__version__,
+        lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.engine = make_engine(settings.database_url)
+    app.state.session_factory = sessionmaker(app.state.engine)
+    app.state.store = ContentStore(settings.content_dir)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
@@ -34,6 +56,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     install_error_handlers(app)
     app.include_router(health.router)
+    app.include_router(auth.router)
+    app.include_router(scenarios.router)
+    app.include_router(sessions.router)
     if (settings.frontend_dist / "index.html").exists():
         mount_frontend(app, settings.frontend_dist)
     return app
