@@ -72,8 +72,8 @@ function LastStep({ step }) {
           {step.role_step && <span className="muted">, шаг ролевой модели «{roleStepTitle(step.role_step)}»</span>}.
         </p>
       )}
-      {applied.map((item) => (
-        <p key={item.text} className={item.cancelled ? 'delayed delayed-cancelled' : 'delayed'}>
+      {applied.map((item, index) => (
+        <p key={`${index}-${item.text}`} className={item.cancelled ? 'delayed delayed-cancelled' : 'delayed'}>
           {item.cancelled ? 'Отложенное последствие отменено: ' : 'Отложенное последствие: '}
           {item.text}
           {!item.cancelled && item.effects && (

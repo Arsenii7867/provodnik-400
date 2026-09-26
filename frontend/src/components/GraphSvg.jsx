@@ -5,7 +5,7 @@ const BOX = { width: 172, height: 66, gapX: 60, gapY: 18 };
 const PAD = 14;
 const TYPE_TITLES = { dialog: 'диалог', event: 'событие', ending: 'концовка' };
 
-export function dominantOutcome(node) {
+function dominantOutcome(node) {
   // концовка красится по исходу, в который ведёт большинство путей через неё
   const entries = Object.entries(node.outcomes || {});
   if (entries.length === 0) {
@@ -43,10 +43,13 @@ export default function GraphSvg({ nodes, edges }) {
   const layout = layerLayout(nodes, BOX);
   const { positions } = layout;
   const drawable = edges.filter((edge) => positions[edge.from] && positions[edge.to]);
+  const width = layout.width + PAD * 2;
+  // граф не ужимается меньше своей ширины: подписи узлов остаются читаемыми, карточка прокручивается
   return (
     <svg
       className="graph"
-      viewBox={`0 0 ${layout.width + PAD * 2} ${layout.height + PAD * 2}`}
+      style={{ minWidth: width }}
+      viewBox={`0 0 ${width} ${layout.height + PAD * 2}`}
       role="img"
       aria-label="Граф сценария"
     >
@@ -84,7 +87,7 @@ export default function GraphSvg({ nodes, edges }) {
                 {node.id}
               </text>
               {wrapLabel(node.label, 27, 2).map((line, index) => (
-                <text key={line} className="graph-node-label" x="12" y={38 + index * 14}>
+                <text key={index} className="graph-node-label" x="12" y={38 + index * 14}>
                   {line}
                 </text>
               ))}

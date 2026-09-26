@@ -40,14 +40,14 @@ export default function Layout() {
             Проводник 400
           </NavLink>
           <nav className="topnav">
-            <NavLink to="/" end>
+            <NavLink to="/" end aria-label={unread > 0 ? `Главная, непрочитанных уведомлений: ${unread}` : 'Главная'}>
               Главная
+              {unread > 0 && (
+                <span className="unread-badge" title="Непрочитанные уведомления" aria-hidden="true">
+                  {unread}
+                </span>
+              )}
             </NavLink>
-            {unread > 0 && (
-              <span className="unread-badge" title="Непрочитанные уведомления" aria-label={`Непрочитанных уведомлений: ${unread}`}>
-                {unread}
-              </span>
-            )}
             <NavLink to="/scenarios">Сценарии</NavLink>
             <NavLink to="/profile">Профиль</NavLink>
             <NavLink to="/leaderboard">Лидерборд</NavLink>

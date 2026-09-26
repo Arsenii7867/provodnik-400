@@ -7,6 +7,8 @@ import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
 import { STATUS_EXPLANATIONS, formatDateTime, percent, plural, seconds, statusTitle } from '../lib/labels.js';
 
+// подпись справа от значения приходит готовой: у личной аналитики это статус сервера,
+// у бригады счётчики проседающих и пробелов, чтобы фронт не выдумывал пороги
 function CompetencyRadar({ items, caption }) {
   return (
     <div className="radar-wrap">
@@ -19,8 +21,8 @@ function CompetencyRadar({ items, caption }) {
               <span className="legend-dot" />
               <span className="legend-title">{item.title}</span>
               <span className="legend-value">{item.value === null ? 'не оценивалась' : percent(item.value)}</span>
-              <span className="muted" title={STATUS_EXPLANATIONS[item.status]}>
-                {statusTitle(item.status)}
+              <span className="muted" title={item.hint}>
+                {item.detail}
               </span>
             </li>
           ))}
@@ -92,7 +94,14 @@ function PersonalAnalytics({ data, scenarioTitles }) {
   const titles = {};
   const items = data.competencies.map((item) => {
     titles[item.code] = item.title;
-    return { code: item.code, title: item.title, value: item.mastery, status: item.status };
+    return {
+      code: item.code,
+      title: item.title,
+      value: item.mastery,
+      status: item.status,
+      detail: statusTitle(item.status),
+      hint: STATUS_EXPLANATIONS[item.status],
+    };
   });
   const fewData = data.competencies.filter((item) => item.status === 'few_data').map((item) => item.code);
   return (
@@ -176,10 +185,18 @@ function TeamAnalytics() {
     return <p className="muted">Загружаем аналитику бригады</p>;
   }
   const titles = {};
+  const size = data.members.length;
   const items = data.competencies.map((item) => {
     titles[item.code] = item.title;
-    const status = data.brigade_gaps.includes(item.code) ? 'gap' : item.weak_count > 0 ? 'weak' : 'ok';
-    return { code: item.code, title: item.title, value: item.mean_mastery, status };
+    // пробел бригады решает сервер; остальное показываем счётчиками, без своих порогов
+    return {
+      code: item.code,
+      title: item.title,
+      value: item.mean_mastery,
+      status: data.brigade_gaps.includes(item.code) ? 'gap' : 'ok',
+      detail: `проседает у ${item.weak_count} из ${size}, пробел у ${item.gap_count} из ${size}`,
+      hint: STATUS_EXPLANATIONS.gap,
+    };
   });
   return (
     <div className="cards">
@@ -255,10 +272,12 @@ function TeamAnalytics() {
 
 export default function AnalyticsPage() {
   const { profile } = useOutletContext();
-  const [tab, setTab] = useState('me');
+  const [chosen, setTab] = useState(null);
   const analytics = useLoad(() => api.get('/api/analytics/me'));
   const scenarios = useLoad(() => api.get('/api/scenarios'));
   const isMentor = Boolean(profile.data && profile.data.role === 'mentor');
+  // наставник приходит за агрегатом по бригаде, поэтому его вкладка открывается первой
+  const tab = chosen || (isMentor ? 'team' : 'me');
   const scenarioTitles = {};
   for (const item of scenarios.data || []) {
     scenarioTitles[item.id] = item.title;

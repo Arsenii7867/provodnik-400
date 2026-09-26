@@ -286,6 +286,11 @@ select:focus {
   gap: 16px;
 }
 
+/* таблица внутри карточки иначе задаёт ширину колонки грида, и вся страница уезжает вширь */
+.cards > * {
+  min-width: 0;
+}
+
 .card {
   padding: 20px;
   border-radius: var(--radius);
@@ -1520,7 +1525,6 @@ th {
 .graph {
   display: block;
   width: 100%;
-  min-width: 640px;
 }
 
 .graph marker path {
@@ -1712,6 +1716,11 @@ code {
   background: var(--blue-light);
   color: var(--blue-dark);
   font-size: 0.875em;
+  overflow-wrap: anywhere;
+}
+
+.topnav a .unread-badge {
+  margin-left: 6px;
 }
 
 /* дашборд и каталог */

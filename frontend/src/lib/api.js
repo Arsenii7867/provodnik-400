@@ -8,7 +8,7 @@ const TOKEN_KEY = 'provodnik.token';
 
 let serverOffsetMs = 0;
 
-export class ApiError extends Error {
+class ApiError extends Error {
   constructor(status, code, message, details) {
     super(message);
     this.status = status;

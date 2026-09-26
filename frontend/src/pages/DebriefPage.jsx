@@ -185,8 +185,8 @@ function StepCard({ step, titles }) {
         <EffectArrow label="Лояльность" before={step.loyalty_before} after={step.loyalty_after} />
         <EffectArrow label="Безопасность" before={step.safety_before} after={step.safety_after} />
       </div>
-      {applied.map((item) => (
-        <p key={item.text} className={item.cancelled ? 'delayed delayed-cancelled' : 'delayed'}>
+      {applied.map((item, index) => (
+        <p key={`${index}-${item.text}`} className={item.cancelled ? 'delayed delayed-cancelled' : 'delayed'}>
           {item.cancelled ? 'Отложенное последствие отменено: ' : 'Отложенное последствие сработало: '}
           {item.text}
           {!item.cancelled && item.effects && (

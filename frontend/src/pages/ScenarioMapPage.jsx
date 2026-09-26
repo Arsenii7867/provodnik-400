@@ -82,7 +82,7 @@ export default function ScenarioMapPage() {
         <GraphSvg nodes={data.nodes} edges={data.edges} />
         <ul className="legend">
           <li>
-            <span className="legend-swatch swatch-dialog" /> узел с выбором
+            <span className="legend-swatch" /> узел с выбором
           </li>
           <li>
             <span className="legend-swatch swatch-event" /> событие без выбора
@@ -100,7 +100,7 @@ export default function ScenarioMapPage() {
             <span className="legend-swatch swatch-timer">20 с</span> таймер узла
           </li>
           <li>
-            <span className="legend-line line-expire" /> ветка истечения таймера
+            <span className="legend-line" /> ветка истечения таймера
           </li>
           <li>
             <span className="legend-line line-conditional" /> вариант по условию

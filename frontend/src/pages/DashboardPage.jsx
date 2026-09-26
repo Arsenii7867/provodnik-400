@@ -127,6 +127,32 @@ function ChallengesCard({ challenges }) {
   );
 }
 
+function BrigadeCard() {
+  const team = useLoad(() => api.get('/api/analytics/team'));
+  const data = team.data;
+  return (
+    <section className="card card-accent">
+      <h2>Моя бригада</h2>
+      {team.error && <p className="error">{team.error}</p>}
+      {!data && !team.error && <p className="muted">Загружаем аналитику бригады</p>}
+      {data && (
+        <>
+          <p>{data.summary}</p>
+          <ul className="recommendations">
+            {data.recommendations.map((item) => (
+              <li key={item.scenario_id}>
+                <Link to={`/scenarios#${item.scenario_id}`}>{item.title}</Link>
+                <span className="muted">{item.reason}</span>
+              </li>
+            ))}
+          </ul>
+          <Link to="/analytics">Аналитика бригады по сотрудникам и компетенциям</Link>
+        </>
+      )}
+    </section>
+  );
+}
+
 function BonusCard({ bonus }) {
   if (!bonus.active_total && bonus.expiring.length === 0) {
     return null;
@@ -213,6 +239,19 @@ export default function DashboardPage() {
   }
   if (!profile.data) {
     return <p className="muted">Загружаем профиль</p>;
+  }
+  // наставнику вместо уровня и рекомендаций нужен агрегат по бригаде: он смотрит на людей
+  if (profile.data.role === 'mentor') {
+    return (
+      <>
+        <h1>Бригада и уведомления</h1>
+        <div className="cards">
+          {active.data && active.data.active && <ActiveRunCard active={active.data.active} />}
+          <BrigadeCard />
+          <Notifications notifications={notifications} />
+        </div>
+      </>
+    );
   }
   return (
     <>
