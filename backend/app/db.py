@@ -1,6 +1,6 @@
 """Подключение к базе: движок из DATABASE_URL, фабрика сессий и зависимость get_db.
 SQLite получает WAL и busy_timeout, чтобы запросы фронта и тестов не ловили «database is
-locked»; PostgreSQL из compose идёт через тот же код без отдельных веток."""
+locked»; PostgreSQL по DATABASE_URL идёт через тот же код без отдельных веток."""
 
 from pathlib import Path
 from typing import Annotated
