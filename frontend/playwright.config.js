@@ -22,6 +22,9 @@ const channel = process.env.PW_CHANNEL || (fs.existsSync(chromium.executablePath
 export default defineConfig({
   testDir: 'e2e',
   timeout: 30_000,
+  // проверки входят одним демо-сотрудником, а новый старт прерывает его активное прохождение:
+  // параллельные воркеры мешали бы друг другу
+  workers: 1,
   use: { baseURL, locale: 'ru-RU', timezoneId: 'Europe/Moscow' },
   webServer: process.env.BASE_URL
     ? undefined
