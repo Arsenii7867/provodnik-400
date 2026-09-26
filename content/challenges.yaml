@@ -1,0 +1,39 @@
+# Челленджи: временные задания с бонусными баллами, которые сгорают. Запись это условие из
+# реестра сервиса челленджей (type и params) и окно в днях. При сиде и при перечитывании контента
+# для каждого челленджа, которого ещё нет в таблице challenges, создаётся строка с началом и
+# концом окна, и все сотрудники получают уведомление. Прогресс считается по завершённым
+# прохождениям внутри окна; за выполнение начисляется bonus_points со сроком сгорания
+# bonus.challenge_bonus_ttl_hours из rules.yaml. Пустой список scenario_ids означает любой сценарий.
+#
+# Типы условий:
+#   no_incident_all  {}          каждый сценарий из scenario_ids завершён в окне без инцидента
+#   role_chain_count {count}     не меньше count прохождений в окне с полной цепочкой ролевой модели
+#   outcome_min      {outcome}   каждый сценарий из scenario_ids завершён в окне с исходом не хуже outcome
+
+- id: safety_week
+  title: Неделя безопасности
+  description: >-
+    За неделю пройти все критические сценарии без инцидента: давит в груди, дым в тамбуре,
+    сумка без хозяина.
+  scenario_ids: [medical_chest_pain, smoking_vestibule, unattended_bag]
+  condition: {type: no_incident_all, params: {}}
+  bonus_points: 50
+  duration_days: 7
+
+- id: four_steps_week
+  title: Четыре шага
+  description: >-
+    Три прохождения за неделю с полной цепочкой ролевой модели: признать ситуацию, обозначить
+    правило, предложить решение, заверить пассажира.
+  scenario_ids: []
+  condition: {type: role_chain_count, params: {count: 3}}
+  bonus_points: 30
+  duration_days: 7
+
+- id: inclusion_week
+  title: Инклюзия
+  description: За две недели образцово провести посадку пассажира на кресле-коляске.
+  scenario_ids: [wheelchair_boarding]
+  condition: {type: outcome_min, params: {outcome: exemplary}}
+  bonus_points: 40
+  duration_days: 14

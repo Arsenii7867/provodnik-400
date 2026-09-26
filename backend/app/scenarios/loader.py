@@ -10,6 +10,7 @@ import yaml
 from app.scenarios import refs as refs_book
 from app.scenarios import rules as rulebook
 from app.services import achievements as achievements_book
+from app.services import challenges as challenges_book
 
 REFERENCE_FILES = ("competencies", "classes", "levels", "rules", "refs", "achievements", "challenges")
 # эти справочники появляются позже остальных; без них контент считается целым
@@ -122,8 +123,9 @@ def check_references(content):
         problems.append("levels.yaml: пороги начинаются с 0 и строго растут")
     problems += [f"rules.yaml: нет ключа {path}" for path in rulebook.missing_keys(content.rules)]
     problems += [f"refs.yaml: {problem}" for problem in refs_book.check_refs(content.refs)]
-    # реестр типов правил живёт рядом с выдачей достижений: неизвестный тип ловится при чтении файла
+    # реестры типов правил живут рядом с выдачей достижений и бонусов: неизвестный тип ловится при чтении
     problems += [f"achievements.yaml: {item}" for item in achievements_book.check_achievements(content)]
+    problems += [f"challenges.yaml: {item}" for item in challenges_book.check_challenges(content)]
     return problems
 
 

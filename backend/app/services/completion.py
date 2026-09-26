@@ -1,14 +1,15 @@
 """Итог прохождения и всё, что он запускает в той же транзакции: исход, очки и XP по
 rules.yaml с прибавкой к профилю (finish_run даёт значения колонок scenario_runs), затем после
-условного UPDATE владение компетенциями, достижения по правилам, переход уровня с уведомлением,
-событие run_completed для LMS и запись в журнал действий (complete_run)."""
+условного UPDATE владение компетенциями, достижения по правилам, бонусы выполненных челленджей,
+переход уровня с уведомлением, событие run_completed для LMS и запись в журнал действий
+(complete_run)."""
 
 from sqlalchemy import func, select, update
 
 from app import clock
 from app.models import Employee, Profile, ScenarioRun
 from app.scenarios import engine
-from app.services import achievements, action_log, analytics, notifications, outbox, scoring
+from app.services import achievements, action_log, analytics, challenges, notifications, outbox, scoring
 
 
 def finish_run(db, run, content, state, now):
@@ -90,6 +91,7 @@ def complete_run(db, run, scenario, content, values, now):
         now,
     )
     awarded = achievements.evaluate(db, content, employee, facts, mastery, now)
+    completed = challenges.evaluate(db, content, employee, run.id, now)
     xp_after = db.scalar(select(Profile.xp_total).where(Profile.employee_id == employee.id))
     level_up = notify_level_up(db, content, employee, xp_after - values["xp_earned"], xp_after, now)
     payload = {
@@ -97,6 +99,7 @@ def complete_run(db, run, scenario, content, values, now):
         "xp": values["xp_earned"],
         "score": values["score"],
         "achievements": [item["id"] for item in awarded],
+        "challenges": [item["id"] for item in completed],
         "level_up": level_up,
     }
     action_log.log(db, employee.id, "run_finished", "run", run.id, payload, now)

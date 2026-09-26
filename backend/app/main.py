@@ -12,7 +12,18 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
 from app import __version__, clock
-from app.api import achievements, auth, health, notifications, profile, runs, scenarios, sessions
+from app.api import (
+    achievements,
+    auth,
+    challenges,
+    health,
+    leaderboard,
+    notifications,
+    profile,
+    runs,
+    scenarios,
+    sessions,
+)
 from app.config import Settings, load_settings
 from app.db import make_engine, prepare_database
 from app.errors import ApiError, install_error_handlers
@@ -27,10 +38,10 @@ SERVER_PREFIXES = ("api", "docs", "redoc", "openapi.json")
 async def lifespan(app: FastAPI):
     settings = app.state.settings
     prepare_database(app.state.engine)
+    app.state.store.refresh()
     if settings.auto_seed:
         with app.state.session_factory() as db:
-            seed(db, settings, clock.now())
-    app.state.store.refresh()
+            seed(db, app.state.store, settings, clock.now())
     yield
     app.state.engine.dispose()
 
@@ -62,7 +73,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(runs.router)
     app.include_router(achievements.router)
+    app.include_router(leaderboard.router)
     app.include_router(notifications.router)
+    app.include_router(challenges.router)
     if (settings.frontend_dist / "index.html").exists():
         mount_frontend(app, settings.frontend_dist)
     return app

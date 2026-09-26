@@ -265,7 +265,7 @@ def test_notification_dedupe(client, app):
         assert notifications.create(*args) is not None
         assert notifications.create(*args) is None
         db.commit()
-        rows = db.scalars(select(Notification)).all()
+        rows = db.scalars(select(Notification).where(Notification.dedupe_key == key)).all()
         assert len(rows) == 1 and rows[0].payload_json == {"a": 1}
         assert notifications.list_for(db, employee_id, 10)[0]["title"] == "Достижение: тест"
 

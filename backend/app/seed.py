@@ -11,6 +11,8 @@ from app import auth, clock
 from app.config import load_settings
 from app.db import make_engine, prepare_database
 from app.models import Brigade, Depot, Employee, Profile
+from app.scenarios.store import ContentStore
+from app.services import challenges
 
 DEPOTS = {
     "ТЧ Москва-ВСМ": ("М-01", "М-02", "М-03"),
@@ -41,7 +43,7 @@ DEMO_ACCOUNTS = (
 )
 
 
-def seed(db, settings, now) -> bool:
+def seed(db, store, settings, now) -> bool:
     """Заполняет пустую базу; при существующем депо ничего не делает и возвращает False."""
     if db.scalar(select(func.count()).select_from(Depot)):
         return False
@@ -69,6 +71,8 @@ def seed(db, settings, now) -> bool:
         db.add(employee)
         db.flush()
         db.add(Profile(employee_id=employee.id, xp_total=0, updated_at=now))
+    db.flush()
+    challenges.activate(db, store.content(), now)
     db.commit()
     return True
 
@@ -78,7 +82,7 @@ def main():
     engine = make_engine(settings.database_url)
     prepare_database(engine)
     with sessionmaker(engine)() as db:
-        created = seed(db, settings, clock.now())
+        created = seed(db, ContentStore(settings.content_dir), settings, clock.now())
     codes = ", ".join(account["code"] for account in DEMO_ACCOUNTS)
     print(f"База заполнена: демо-аккаунты {codes}" if created else "База уже заполнена, ничего не изменено")
 

@@ -39,7 +39,7 @@ def test_loads_reference_content():
     assert "medical_chest_pain" in content.scenarios
     assert content.files["medical_chest_pain"].name == "medical_chest_pain.yaml"
     assert [item["id"] for item in content.achievements][:2] == ["first_run", "four_steps"]
-    assert content.challenges == []
+    assert [item["id"] for item in content.challenges] == ["safety_week", "four_steps_week", "inclusion_week"]
 
 
 def test_yaml_dicts_remember_lines():

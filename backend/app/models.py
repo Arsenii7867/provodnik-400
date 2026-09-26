@@ -172,6 +172,7 @@ class BonusPoint(Base):
     points: Mapped[int]
     reason: Mapped[str]
     challenge_id: Mapped[str | None]
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("scenario_runs.id"))
     earned_at: Mapped[datetime]
     expires_at: Mapped[datetime | None]
 

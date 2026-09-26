@@ -1,11 +1,15 @@
 """Рейтинг для лидерборда: сумма лучших очков по каждому сценарию плюс неистёкшие бонусы
-челленджей. Считается запросом на каждое обращение и нигде не хранится; истёкшие бонусы просто
-не попадают в сумму, так баллы сгорают без фоновых задач. Профиль берёт отсюда место в
-бригаде, лидерборд ранжирует те же строки по выбранному охвату."""
+челленджей. Считается запросами с группировкой на каждое обращение и нигде не хранится;
+истёкшие бонусы просто не попадают в сумму, так баллы сгорают без фоновых задач. Три охвата
+(бригада, депо, компания) это три выборки проводников над одним и тем же подсчётом; профиль
+берёт отсюда место в бригаде."""
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import selectinload
 
-from app.models import AchievementEarned, BonusPoint, Employee, ScenarioRun
+from app.models import AchievementEarned, BonusPoint, Brigade, Employee, ScenarioRun
+
+SCOPES = ("brigade", "depot", "company")
 
 
 def ratings(db, employee_ids, now):
@@ -56,11 +60,58 @@ def ranked(db, employees, now):
     return rows
 
 
+def members(db, employee, scope):
+    """Проводники охвата: своя бригада, все бригады своего депо или вся компания."""
+    query = select(Employee).where(Employee.role == "conductor")
+    if scope == "brigade":
+        query = query.where(Employee.brigade_id == employee.brigade_id)
+    elif scope == "depot":
+        query = query.join(Brigade, Brigade.id == Employee.brigade_id).where(
+            Brigade.depot_id == employee.brigade.depot_id
+        )
+    query = query.options(selectinload(Employee.brigade).selectinload(Brigade.depot)).order_by(Employee.code)
+    return db.scalars(query).all()
+
+
+def scope_title(employee, scope):
+    if scope == "brigade":
+        return f"Бригада {employee.brigade.name}"
+    if scope == "depot":
+        return employee.brigade.depot.name
+    return "Компания"
+
+
+def row_view(row, employee):
+    person = row["employee"]
+    return {
+        "rank": row["rank"],
+        "employee_code": person.code,
+        "display_name": person.display_name,
+        "brigade": person.brigade.name,
+        "depot": person.brigade.depot.name,
+        "score": row["score"],
+        "best_scores_sum": row["best_scores_sum"],
+        "bonus_points": row["bonus_points"],
+        "achievements": row["achievements"],
+        "is_me": person.id == employee.id,
+    }
+
+
+def board(db, employee, scope, limit, now):
+    """Лидерборд охвата: первые limit строк и своя строка с местом по всему охвату; наставник в
+    рейтинге не участвует, поэтому его строка None."""
+    rows = [row_view(row, employee) for row in ranked(db, members(db, employee, scope), now)]
+    return {
+        "scope": scope,
+        "scope_title": scope_title(employee, scope),
+        "rows": rows[:limit],
+        "me": next((row for row in rows if row["is_me"]), None),
+    }
+
+
 def rank_in_brigade(db, employee, now):
     """Место проводника среди проводников своей бригады; наставники в рейтинге не участвуют."""
     if employee.role != "conductor":
         return None
-    members = db.scalars(
-        select(Employee).where(Employee.brigade_id == employee.brigade_id, Employee.role == "conductor")
-    ).all()
-    return next(row["rank"] for row in ranked(db, members, now) if row["employee"].id == employee.id)
+    rows = ranked(db, members(db, employee, "brigade"), now)
+    return next(row["rank"] for row in rows if row["employee"].id == employee.id)

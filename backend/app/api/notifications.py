@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app import clock
 from app.auth import CurrentEmployee
@@ -11,7 +11,10 @@ LIST_LIMIT = 100
 
 
 @router.get("", summary="Уведомления сотрудника, новые первыми", response_model=list[NotificationOut])
-def list_notifications(employee: CurrentEmployee, db: Db):
+def list_notifications(request: Request, employee: CurrentEmployee, db: Db):
+    # сгорание проверяется при чтении: бонус, до срока которого меньше двух суток, даёт уведомление здесь
+    rules = request.app.state.store.content().rules
+    notifications.notify_expiring_bonuses(db, employee.id, rules, clock.now())
     return notifications.list_for(db, employee.id, LIST_LIMIT)
 
 

@@ -8,7 +8,7 @@ from app.auth import CurrentEmployee, employee_view
 from app.db import Db
 from app.models import AchievementEarned, BonusPoint, Profile, ScenarioRun
 from app.schemas import ProfileResponse, RunHistoryItem
-from app.services import analytics, leaderboard, scoring
+from app.services import analytics, leaderboard, notifications, scoring
 
 router = APIRouter(prefix="/api/profile", tags=["Профиль"])
 
@@ -56,6 +56,7 @@ def bonus_view(db, employee_id, rules, now):
 def profile(request: Request, employee: CurrentEmployee, db: Db):
     content = request.app.state.store.content()
     now = clock.now()
+    notifications.notify_expiring_bonuses(db, employee.id, content.rules, now)
     xp_total = db.get(Profile, employee.id).xp_total
     level = scoring.level_for(xp_total, content.levels)
     finished = ScenarioRun.employee_id == employee.id, ScenarioRun.status == "finished"

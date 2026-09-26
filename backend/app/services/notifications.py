@@ -1,13 +1,17 @@
-"""Уведомления сотруднику: достижение и новый уровень при завершении прохождения, позже новый
-сценарий, челлендж и сгорающие баллы. У каждого повода свой dedupe_key с уникальностью в базе,
-поэтому событие даёт ровно одно уведомление, сколько бы раз его ни создавали."""
+"""Уведомления сотруднику: достижение и новый уровень при завершении прохождения, челлендж
+при активации и выполнении, новый сценарий после перечитывания контента, сгорающие баллы при
+чтении. У каждого повода свой dedupe_key с уникальностью в базе, поэтому событие даёт ровно одно
+уведомление, сколько бы раз его ни создавали."""
+
+from datetime import timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from app import clock
 from app.errors import ApiError
-from app.models import Notification
+from app.models import BonusPoint, Employee, Notification
+from app.services.texts import plural
 
 
 def create(db, employee_id, kind, title, body, payload, dedupe_key, now):
@@ -72,3 +76,49 @@ def mark_all_read(db, employee_id, now):
     )
     db.commit()
     return result.rowcount
+
+
+def notify_expiring_bonuses(db, employee_id, rules, now):
+    """Ленивое предупреждение о сгорании: при чтении уведомлений, профиля или челленджей каждый
+    ещё действующий бонус, до срока которого меньше expiring_notice_hours, даёт одно уведомление.
+    Уже сгоревшие бонусы уведомления не создают. Возвращает число новых записей."""
+    horizon = now + timedelta(hours=rules["bonus"]["expiring_notice_hours"])
+    soon = BonusPoint.expires_at > now, BonusPoint.expires_at <= horizon
+    rows = db.scalars(
+        select(BonusPoint).where(BonusPoint.employee_id == employee_id, *soon).order_by(BonusPoint.expires_at)
+    ).all()
+    created = 0
+    for row in rows:
+        hours = max(1, round((row.expires_at - now).total_seconds() / 3600))
+        points = plural(row.points, "балл", "балла", "баллов")
+        body = f"Через {plural(hours, 'час', 'часа', 'часов')} сгорают {points} к рейтингу: {row.reason}."
+        payload = {"bonus_id": row.id, "points": row.points, "expires_at": clock.iso(row.expires_at)}
+        key = f"points_expiring:{row.id}"
+        if create(db, employee_id, "points_expiring", f"Сгорают {points}", body, payload, key, now):
+            created += 1
+    if created:
+        db.commit()
+    return created
+
+
+def notify_new_scenarios(db, content, scenario_ids, now):
+    """Уведомление всем сотрудникам о сценариях, появившихся после перечитывания контента."""
+    employee_ids = db.scalars(select(Employee.id).order_by(Employee.id)).all()
+    created = 0
+    for scenario_id in scenario_ids:
+        scenario = content.scenarios.get(scenario_id)
+        if scenario is None:
+            continue
+        for employee_id in employee_ids:
+            row = create(
+                db,
+                employee_id,
+                "new_scenario",
+                f"Новый сценарий: {scenario['title']}",
+                scenario["summary"],
+                {"scenario_id": scenario_id},
+                f"new_scenario:{scenario_id}:{employee_id}",
+                now,
+            )
+            created += row is not None
+    return created

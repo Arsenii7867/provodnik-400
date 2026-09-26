@@ -330,6 +330,13 @@ class XpBreakdownOut(BaseModel):
     role: int
 
 
+class ChallengeCompletedOut(BaseModel):
+    id: str
+    title: str
+    bonus_points: int
+    bonus_expires_at: str
+
+
 class DebriefResponse(BaseModel):
     run_id: int
     scenario_id: str
@@ -350,6 +357,7 @@ class DebriefResponse(BaseModel):
     steps: list[DebriefStep]
     ending: EndingOut
     achievements_new: list[AchievementNewOut]
+    challenges_completed: list[ChallengeCompletedOut]
     competencies_delta: list[CompetencyDeltaOut]
     level_before: LevelOut
     level_after: LevelOut
@@ -377,3 +385,42 @@ class NotificationOut(BaseModel):
 
 class ReadAllResponse(BaseModel):
     read: int
+
+
+class LeaderboardRow(BaseModel):
+    rank: int
+    employee_code: str
+    display_name: str
+    brigade: str
+    depot: str
+    score: int
+    best_scores_sum: int
+    bonus_points: int
+    achievements: int
+    is_me: bool
+
+
+class LeaderboardResponse(BaseModel):
+    scope: str
+    scope_title: str
+    rows: list[LeaderboardRow]
+    me: LeaderboardRow | None
+
+
+class ChallengeProgressOut(BaseModel):
+    done: int
+    total: int
+    completed: bool
+
+
+class ChallengeOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    scenario_ids: list[str]
+    bonus_points: int
+    starts_at: str
+    ends_at: str
+    progress: ChallengeProgressOut
+    bonus_expires_at: str | None
+    status: str

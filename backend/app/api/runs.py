@@ -6,10 +6,11 @@
 from fastapi import APIRouter, Request
 from sqlalchemy import func, select
 
+from app import clock
 from app.auth import CurrentEmployee
 from app.db import Db, EntityId
 from app.errors import ApiError
-from app.models import AchievementEarned, RunStep, ScenarioRun
+from app.models import AchievementEarned, BonusPoint, RunStep, ScenarioRun
 from app.scenarios import engine, refs
 from app.schemas import DebriefResponse
 from app.services import analytics, scoring, session_service
@@ -90,6 +91,21 @@ def achievements_new(db, content, run):
     ]
 
 
+def challenges_completed(db, content, run):
+    """Челленджи, бонус за которые начислен этим прохождением; название из текущего YAML."""
+    rows = db.scalars(select(BonusPoint).where(BonusPoint.run_id == run.id).order_by(BonusPoint.id)).all()
+    titles = {item["id"]: item["title"] for item in content.challenges}
+    return [
+        {
+            "id": row.challenge_id,
+            "title": titles.get(row.challenge_id, row.reason),
+            "bonus_points": row.points,
+            "bonus_expires_at": clock.iso(row.expires_at),
+        }
+        for row in rows
+    ]
+
+
 def competencies_delta(db, content, run):
     """Владение до и после этого прохождения по окну: до считается по прохождениям с меньшим id."""
     before = {item["code"]: item for item in analytics.mastery_for(db, content, run.employee_id, run.id - 1)}
@@ -161,6 +177,7 @@ def debrief(run_id: EntityId, request: Request, employee: CurrentEmployee, db: D
         "steps": [step_view(scenario, content, engine_steps, row) for row in rows],
         "ending": ending_view(content, state["node"], scenario["nodes"].get(state["node"]) or {}),
         "achievements_new": achievements_new(db, content, run),
+        "challenges_completed": challenges_completed(db, content, run),
         "competencies_delta": competencies_delta(db, content, run),
         "level_before": scoring.level_for(xp_before, content.levels),
         "level_after": scoring.level_for(xp_before + run.xp_earned, content.levels),
