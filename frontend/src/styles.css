@@ -878,4 +878,12 @@ select:focus {
     flex-direction: column;
     gap: 8px;
   }
+
+  .option-button {
+    flex-wrap: wrap;
+  }
+
+  .option-role {
+    margin-left: auto;
+  }
 }
