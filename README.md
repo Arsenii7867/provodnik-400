@@ -11,11 +11,14 @@
 ```
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt
+.venv/Scripts/python -m app.seed
 .venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Проверка: `http://127.0.0.1:8000/api/health` отвечает JSON со статусом `ok`,
-описание API на `http://127.0.0.1:8000/docs`.
+описание API на `http://127.0.0.1:8000/docs`. Демо-вход: коды `VSM-1001` и `VSM-1002`
+(проводники), `VSM-2001` (наставник), PIN `1234` (переменная `DEMO_PIN`). Все сотрудники
+синтетические. Сид идемпотентен, при `AUTO_SEED=1` сервер сам заполняет пустую базу.
 
 Фронт (node 22 и новее), из папки `frontend`:
 
@@ -31,9 +34,9 @@ npm run build
 
 | Путь | Что там |
 |---|---|
-| `backend/app` | сервер на FastAPI: настройки, единый формат ошибок, маршруты |
-| `backend/app/scenarios` | движок прохождения, загрузчик, валидатор, перебор путей и граф сценариев |
-| `backend/app/services` | подсчёт результата: XP, уровни, владение компетенциями |
+| `backend/app` | сервер на FastAPI: настройки, база, вход по коду и PIN, единый формат ошибок, маршруты в `api` |
+| `backend/app/scenarios` | движок прохождения, загрузчик, валидатор, перебор путей, граф и хранилище контента с перечитыванием |
+| `backend/app/services` | прохождение с серверными таймерами, подсчёт результата: XP, уровни, владение компетенциями |
 | `backend/tests` | тесты pytest на временной SQLite, сломанные сценарии в `tests/fixtures/broken` |
 | `content` | справочники и сценарии в YAML, описание формата в `docs/scenarios.md` |
 | `frontend/src` | интерфейс на React, данные только через `src/lib/api.js` |
