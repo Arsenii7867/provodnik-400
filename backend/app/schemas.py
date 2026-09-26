@@ -491,6 +491,102 @@ class TeamAnalyticsResponse(BaseModel):
     summary: str
 
 
+class IntegrationCompetencyOut(BaseModel):
+    code: str
+    mastery: float | None
+    status: str
+    runs_assessed: int
+
+
+class ResultItem(BaseModel):
+    run_id: int
+    employee_code: str
+    brigade: str
+    scenario_id: str
+    scenario_version: int
+    finished_at: str
+    outcome: str
+    loyalty_final: int
+    safety_final: int
+    score: int
+    xp: int
+    competencies: dict
+
+
+class AchievementRef(BaseModel):
+    id: str
+    earned_at: str
+
+
+class EmployeeResultsOut(EmployeeOut):
+    xp_total: int
+    level: LevelOut
+    competencies: list[IntegrationCompetencyOut]
+    runs: list[ResultItem]
+    achievements: list[AchievementRef]
+
+
+class ResultsPage(BaseModel):
+    items: list[ResultItem]
+    next_cursor: int | None
+
+
+class EventOut(BaseModel):
+    id: int
+    event_type: str
+    payload: dict
+    created_at: str
+    delivered_at: str | None
+
+
+class EventsPage(BaseModel):
+    items: list[EventOut]
+    next_after_id: int
+
+
+class AckResponse(BaseModel):
+    acked: int
+
+
+class CompetencyRef(BaseModel):
+    code: str
+    title: str
+    description: str
+
+
+class ActionOut(BaseModel):
+    id: int
+    action: str
+    entity_type: str
+    entity_id: str | None
+    payload: dict
+    created_at: str
+
+
+class ActionsPage(BaseModel):
+    items: list[ActionOut]
+    next_after_id: int
+
+
+class CreatedEmployeeOut(EmployeeOut):
+    pin: str
+
+
+class ContentErrorOut(BaseModel):
+    file: str
+    line: int
+    message: str
+
+
+class ReloadReport(BaseModel):
+    loaded: list[str]
+    new: list[str]
+    removed: list[str]
+    errors: list[ContentErrorOut]
+    summary: str
+    notified: int
+
+
 class ChallengeProgressOut(BaseModel):
     done: int
     total: int

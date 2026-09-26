@@ -7,7 +7,7 @@ import secrets
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Header, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import delete, select
 
@@ -89,3 +89,11 @@ def require_role(role: str):
         return employee
 
     return check
+
+
+def require_api_key(request: Request, x_api_key: Annotated[str | None, Header()] = None):
+    """Доступ HR и LMS по заголовку X-API-Key; сравнение за постоянное время."""
+    if not x_api_key:
+        raise ApiError(401, "api_key_required", "Нужен заголовок X-API-Key")
+    if not hmac.compare_digest(x_api_key, request.app.state.settings.integration_api_key):
+        raise ApiError(401, "api_key_invalid", "Ключ интеграции не подходит")

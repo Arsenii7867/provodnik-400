@@ -1,6 +1,10 @@
+import json
+from pathlib import Path
+
 from app import __version__
 
 MIN_PATHS = 12
+OPENAPI_EXPORT = Path(__file__).resolve().parents[2] / "docs" / "openapi.json"
 
 
 def test_health_reports_version_and_db(client):
@@ -27,3 +31,9 @@ def test_openapi_has_no_anonymous_body_schemas(client):
     spec = client.get("/openapi.json").json()
     anonymous = [name for name in spec["components"]["schemas"] if name.startswith("Body_")]
     assert anonymous == []
+
+
+def test_openapi_export_is_current(client):
+    """docs/openapi.json перегенерируется скриптом scripts/export_openapi.py после изменения маршрутов."""
+    exported = json.loads(OPENAPI_EXPORT.read_text(encoding="utf-8"))
+    assert exported == client.get("/openapi.json").json()

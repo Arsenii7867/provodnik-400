@@ -90,15 +90,7 @@ class ContentStore:
 
     def read_all(self):
         content, report = validator.load_validated(self.content_dir)
-        errors = list(content.errors)
-        for problem in report["reference_problems"]:
-            errors.append({"file": str(self.content_dir), "line": 0, "message": problem})
-        for scenario_id in report["invalid"]:
-            entry = report["scenarios"][scenario_id]
-            for finding in entry["findings"]:
-                if finding.severity == "error":
-                    message = f"{finding.code}: {finding.message}"
-                    errors.append({"file": str(entry["file"]), "line": finding.line, "message": message})
+        errors = collect_errors(self.content_dir, content, report)
         if errors and self.stamps is not None:
             # частично обновлять нельзя: сценарий прежней версии может ссылаться на класс или норму, которых
             # в новых справочниках уже нет, поэтому до исправления ошибок живёт вся прежняя версия
@@ -117,6 +109,21 @@ class ContentStore:
         self.errors = [f"{item['file']}:{item['line']}: {item['message']}" for item in errors]
         for line in self.errors:
             logger.error("контент: %s", line)
+
+
+def collect_errors(content_dir, content, report):
+    """Все ошибки папки content одним списком {file, line, message}: нечитаемые файлы, сломанные
+    справочники и ошибки валидатора у невалидных сценариев."""
+    errors = list(content.errors)
+    for problem in report["reference_problems"]:
+        errors.append({"file": str(content_dir), "line": 0, "message": problem})
+    for scenario_id in report["invalid"]:
+        entry = report["scenarios"][scenario_id]
+        for finding in entry["findings"]:
+            if finding.severity == "error":
+                message = f"{finding.code}: {finding.message}"
+                errors.append({"file": str(entry["file"]), "line": finding.line, "message": message})
+    return errors
 
 
 def read_text(path):

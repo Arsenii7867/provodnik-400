@@ -14,10 +14,12 @@ from sqlalchemy.orm import sessionmaker
 from app import __version__, clock
 from app.api import (
     achievements,
+    admin,
     analytics,
     auth,
     challenges,
     health,
+    integration,
     leaderboard,
     notifications,
     profile,
@@ -78,6 +80,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notifications.router)
     app.include_router(challenges.router)
     app.include_router(analytics.router)
+    app.include_router(integration.router)
+    app.include_router(admin.router)
     if (settings.frontend_dist / "index.html").exists():
         mount_frontend(app, settings.frontend_dist)
     return app

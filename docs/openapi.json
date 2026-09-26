@@ -1,0 +1,5062 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Проводник 400",
+    "description": "Тренажёр нештатных ситуаций для проводников ВСМ-400.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Здоровье"
+        ],
+        "summary": "Состояние сервиса",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Вход по коду сотрудника и PIN",
+        "operationId": "login_api_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Выход: токен отзывается",
+        "operationId": "logout_api_auth_logout_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Текущий сотрудник по токену",
+        "operationId": "me_api_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/demo": {
+      "get": {
+        "tags": [
+          "Авторизация"
+        ],
+        "summary": "Демо-профили для экрана входа",
+        "operationId": "demo_api_auth_demo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DemoAccount"
+                  },
+                  "type": "array",
+                  "title": "Response Demo Api Auth Demo Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profile": {
+      "get": {
+        "tags": [
+          "Профиль"
+        ],
+        "summary": "Профиль: уровень, XP, компетенции, достижения, место в бригаде",
+        "operationId": "profile_api_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/profile/runs": {
+      "get": {
+        "tags": [
+          "Профиль"
+        ],
+        "summary": "История прохождений сотрудника, новые первыми",
+        "operationId": "runs_api_profile_runs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunHistoryItem"
+                  },
+                  "type": "array",
+                  "title": "Response Runs Api Profile Runs Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/scenarios": {
+      "get": {
+        "tags": [
+          "Сценарии"
+        ],
+        "summary": "Каталог сценариев с фильтрами",
+        "operationId": "list_scenarios_api_scenarios_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "competency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competency"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Difficulty"
+            }
+          },
+          {
+            "name": "service_class",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Class"
+            }
+          },
+          {
+            "name": "critical",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Critical"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioCard"
+                  },
+                  "title": "Response List Scenarios Api Scenarios Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenarios/filters": {
+      "get": {
+        "tags": [
+          "Сценарии"
+        ],
+        "summary": "Значения фильтров каталога",
+        "operationId": "filters_api_scenarios_filters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiltersResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/scenarios/{scenario_id}": {
+      "get": {
+        "tags": [
+          "Сценарии"
+        ],
+        "summary": "Карточка сценария",
+        "operationId": "scenario_detail_api_scenarios__scenario_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scenario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scenarios/{scenario_id}/graph": {
+      "get": {
+        "tags": [
+          "Сценарии"
+        ],
+        "summary": "Граф сценария: узлы, рёбра, пути, Mermaid",
+        "operationId": "scenario_graph_api_scenarios__scenario_id__graph_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scenario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Scenario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "post": {
+        "tags": [
+          "Прохождение"
+        ],
+        "summary": "Начать прохождение сценария",
+        "operationId": "start_api_sessions_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/active": {
+      "get": {
+        "tags": [
+          "Прохождение"
+        ],
+        "summary": "Активное прохождение сотрудника",
+        "operationId": "active_api_sessions_active_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActiveResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/sessions/{run_id}": {
+      "get": {
+        "tags": [
+          "Прохождение"
+        ],
+        "summary": "Состояние прохождения",
+        "operationId": "get_state_api_sessions__run_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{run_id}/choose": {
+      "post": {
+        "tags": [
+          "Прохождение"
+        ],
+        "summary": "Выбрать вариант в текущем узле",
+        "operationId": "choose_api_sessions__run_id__choose_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChooseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{run_id}/expire": {
+      "post": {
+        "tags": [
+          "Прохождение"
+        ],
+        "summary": "Сообщить об истечении таймера",
+        "operationId": "expire_api_sessions__run_id__expire_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpireRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{run_id}/abandon": {
+      "post": {
+        "tags": [
+          "Прохождение"
+        ],
+        "summary": "Прервать прохождение",
+        "operationId": "abandon_api_sessions__run_id__abandon_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run_id}/debrief": {
+      "get": {
+        "tags": [
+          "Разбор"
+        ],
+        "summary": "Разбор завершённого прохождения по шагам",
+        "operationId": "debrief_api_runs__run_id__debrief_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DebriefResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/achievements": {
+      "get": {
+        "tags": [
+          "Достижения"
+        ],
+        "summary": "Каталог достижений с признаком получения",
+        "operationId": "catalog_api_achievements_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AchievementOut"
+                  },
+                  "type": "array",
+                  "title": "Response Catalog Api Achievements Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/leaderboard": {
+      "get": {
+        "tags": [
+          "Лидерборд"
+        ],
+        "summary": "Рейтинг проводников по бригаде, депо или компании со своей строкой",
+        "operationId": "board_api_leaderboard_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "brigade",
+                "depot",
+                "company"
+              ],
+              "type": "string",
+              "default": "brigade",
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "tags": [
+          "Уведомления"
+        ],
+        "summary": "Уведомления сотрудника, новые первыми",
+        "operationId": "list_notifications_api_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Notifications Api Notifications Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/read-all": {
+      "post": {
+        "tags": [
+          "Уведомления"
+        ],
+        "summary": "Отметить все уведомления прочитанными",
+        "operationId": "read_all_api_notifications_read_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadAllResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/{notification_id}/read": {
+      "post": {
+        "tags": [
+          "Уведомления"
+        ],
+        "summary": "Отметить уведомление прочитанным",
+        "operationId": "read_one_api_notifications__notification_id__read_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Notification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/challenges": {
+      "get": {
+        "tags": [
+          "Челленджи"
+        ],
+        "summary": "Челленджи с прогрессом, окном и сроком сгорания бонуса",
+        "operationId": "list_challenges_api_challenges_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengeOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Challenges Api Challenges Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/me": {
+      "get": {
+        "tags": [
+          "Аналитика"
+        ],
+        "summary": "Личная аналитика: владение, проседающие, пробелы, рекомендации, темп, эскалация, динамика",
+        "operationId": "me_api_analytics_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsMeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/analytics/team": {
+      "get": {
+        "tags": [
+          "Аналитика"
+        ],
+        "summary": "Аналитика бригады для наставника: проседающие по сотрудникам, средние по компетенциям",
+        "operationId": "team_api_analytics_team_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "brigade_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Brigade Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAnalyticsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/employees/{code}/results": {
+      "get": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "Результаты сотрудника: уровень, владение, прохождения, достижения",
+        "operationId": "employee_results_api_integration_employees__code__results_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeResultsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/results": {
+      "get": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "Экспорт завершённых прохождений с курсором",
+        "operationId": "results_api_integration_results_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "default": 0,
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultsPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/events": {
+      "get": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "События для LMS с курсором after_id",
+        "operationId": "events_api_integration_events_get",
+        "parameters": [
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "default": 0,
+              "title": "After Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventsPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/events/ack": {
+      "post": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "Подтвердить доставку событий",
+        "operationId": "ack_api_integration_events_ack_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/competencies": {
+      "get": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "Справочник компетенций",
+        "operationId": "competencies_api_integration_competencies_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompetencyRef"
+                  },
+                  "title": "Response Competencies Api Integration Competencies Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/employees/{code}/actions": {
+      "get": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "Журнал действий сотрудника с курсором after_id",
+        "operationId": "actions_api_integration_employees__code__actions_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "minimum": 0,
+              "default": 0,
+              "title": "After Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionsPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integration/employees": {
+      "post": {
+        "tags": [
+          "Интеграция"
+        ],
+        "summary": "Создать сотрудника из HR-системы; PIN возвращается один раз",
+        "operationId": "create_employee_api_integration_employees_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmployeeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedEmployeeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/scenarios/reload": {
+      "post": {
+        "tags": [
+          "Администрирование"
+        ],
+        "summary": "Перечитать сценарии и справочники, уведомить о новых",
+        "operationId": "reload_api_admin_scenarios_reload_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReloadReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/admin/scenarios/validate": {
+      "get": {
+        "tags": [
+          "Администрирование"
+        ],
+        "summary": "Проверить файлы контента валидатором без применения",
+        "operationId": "validate_api_admin_scenarios_validate_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReloadReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AchievementNewOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description"
+        ],
+        "title": "AchievementNewOut"
+      },
+      "AchievementOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "rule_text": {
+            "type": "string",
+            "title": "Rule Text"
+          },
+          "rule_type": {
+            "type": "string",
+            "title": "Rule Type"
+          },
+          "earned": {
+            "type": "boolean",
+            "title": "Earned"
+          },
+          "earned_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "rule_text",
+          "rule_type",
+          "earned",
+          "earned_at"
+        ],
+        "title": "AchievementOut"
+      },
+      "AchievementRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "earned_at": {
+            "type": "string",
+            "title": "Earned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "earned_at"
+        ],
+        "title": "AchievementRef"
+      },
+      "AckRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "integer",
+              "maximum": 9.223372036854776e+18,
+              "minimum": 1.0
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "AckRequest"
+      },
+      "AckResponse": {
+        "properties": {
+          "acked": {
+            "type": "integer",
+            "title": "Acked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "acked"
+        ],
+        "title": "AckResponse"
+      },
+      "ActionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "entity_type",
+          "entity_id",
+          "payload",
+          "created_at"
+        ],
+        "title": "ActionOut"
+      },
+      "ActionsPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_after_id": {
+            "type": "integer",
+            "title": "Next After Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_after_id"
+        ],
+        "title": "ActionsPage"
+      },
+      "ActiveResponse": {
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "title": "ActiveResponse"
+      },
+      "AnalyticsMeResponse": {
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyOut"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "weak": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weak"
+          },
+          "gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "mistakes": {
+            "items": {
+              "$ref": "#/components/schemas/MistakeOut"
+            },
+            "type": "array",
+            "title": "Mistakes"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationOut"
+            },
+            "type": "array",
+            "title": "Recommendations"
+          },
+          "tempo": {
+            "$ref": "#/components/schemas/TempoOut"
+          },
+          "escalation": {
+            "$ref": "#/components/schemas/EscalationOut"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeekOut"
+            },
+            "type": "array",
+            "title": "Weekly"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "runs_total": {
+            "type": "integer",
+            "title": "Runs Total"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competencies",
+          "weak",
+          "gaps",
+          "mistakes",
+          "recommendations",
+          "tempo",
+          "escalation",
+          "weekly",
+          "summary",
+          "runs_total",
+          "last_run_at"
+        ],
+        "title": "AnalyticsMeResponse"
+      },
+      "BestOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "BestOptionOut"
+      },
+      "BonusOut": {
+        "properties": {
+          "active_total": {
+            "type": "integer",
+            "title": "Active Total"
+          },
+          "expiring": {
+            "items": {
+              "$ref": "#/components/schemas/ExpiringBonusOut"
+            },
+            "type": "array",
+            "title": "Expiring"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_total",
+          "expiring"
+        ],
+        "title": "BonusOut"
+      },
+      "BrigadeOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "depot"
+        ],
+        "title": "BrigadeOut"
+      },
+      "ChallengeCompletedOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "bonus_points": {
+            "type": "integer",
+            "title": "Bonus Points"
+          },
+          "bonus_expires_at": {
+            "type": "string",
+            "title": "Bonus Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "bonus_points",
+          "bonus_expires_at"
+        ],
+        "title": "ChallengeCompletedOut"
+      },
+      "ChallengeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "scenario_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scenario Ids"
+          },
+          "bonus_points": {
+            "type": "integer",
+            "title": "Bonus Points"
+          },
+          "starts_at": {
+            "type": "string",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "title": "Ends At"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ChallengeProgressOut"
+          },
+          "bonus_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Expires At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "scenario_ids",
+          "bonus_points",
+          "starts_at",
+          "ends_at",
+          "progress",
+          "bonus_expires_at",
+          "status"
+        ],
+        "title": "ChallengeOut"
+      },
+      "ChallengeProgressOut": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "completed": {
+            "type": "boolean",
+            "title": "Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "total",
+          "completed"
+        ],
+        "title": "ChallengeProgressOut"
+      },
+      "ChooseRequest": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Option Id"
+          },
+          "step_no": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step No"
+          }
+        },
+        "type": "object",
+        "required": [
+          "option_id",
+          "step_no"
+        ],
+        "title": "ChooseRequest"
+      },
+      "CompetencyDeltaOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "earned": {
+            "type": "integer",
+            "title": "Earned"
+          },
+          "assessed": {
+            "type": "integer",
+            "title": "Assessed"
+          },
+          "mastery_before": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mastery Before"
+          },
+          "mastery_after": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mastery After"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "earned",
+          "assessed",
+          "mastery_before",
+          "mastery_after",
+          "status"
+        ],
+        "title": "CompetencyDeltaOut"
+      },
+      "CompetencyOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "mastery": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mastery"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "earned": {
+            "type": "integer",
+            "title": "Earned"
+          },
+          "assessed": {
+            "type": "integer",
+            "title": "Assessed"
+          },
+          "runs_assessed": {
+            "type": "integer",
+            "title": "Runs Assessed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "mastery",
+          "status",
+          "earned",
+          "assessed",
+          "runs_assessed"
+        ],
+        "title": "CompetencyOut"
+      },
+      "CompetencyRef": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "description"
+        ],
+        "title": "CompetencyRef"
+      },
+      "ContentErrorOut": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "line": {
+            "type": "integer",
+            "title": "Line"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "line",
+          "message"
+        ],
+        "title": "ContentErrorOut"
+      },
+      "ContextOut": {
+        "properties": {
+          "service_class": {
+            "type": "string",
+            "title": "Service Class"
+          },
+          "service_class_title": {
+            "type": "string",
+            "title": "Service Class Title"
+          },
+          "layout": {
+            "type": "string",
+            "title": "Layout"
+          },
+          "wait_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wait Minutes"
+          },
+          "loyalty_sensitivity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loyalty Sensitivity"
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment"
+          },
+          "next_station_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Station Minutes"
+          },
+          "time_of_day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Of Day"
+          },
+          "passenger": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passenger"
+          },
+          "loyalty_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loyalty Of"
+          },
+          "crew_available": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Crew Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_class",
+          "service_class_title",
+          "layout",
+          "wait_minutes",
+          "loyalty_sensitivity",
+          "segment",
+          "next_station_minutes",
+          "time_of_day",
+          "passenger",
+          "loyalty_of",
+          "crew_available"
+        ],
+        "title": "ContextOut"
+      },
+      "CreateEmployeeRequest": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9-]+$",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "brigade": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Brigade"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "conductor",
+              "mentor"
+            ],
+            "title": "Role",
+            "default": "conductor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "brigade"
+        ],
+        "title": "CreateEmployeeRequest"
+      },
+      "CreatedEmployeeOut": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          },
+          "pin": {
+            "type": "string",
+            "title": "Pin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "role",
+          "brigade",
+          "depot",
+          "pin"
+        ],
+        "title": "CreatedEmployeeOut"
+      },
+      "DebriefResponse": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "service_class": {
+            "type": "string",
+            "title": "Service Class"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "loyalty_start": {
+            "type": "integer",
+            "title": "Loyalty Start"
+          },
+          "safety_start": {
+            "type": "integer",
+            "title": "Safety Start"
+          },
+          "loyalty_final": {
+            "type": "integer",
+            "title": "Loyalty Final"
+          },
+          "safety_final": {
+            "type": "integer",
+            "title": "Safety Final"
+          },
+          "xp": {
+            "type": "integer",
+            "title": "Xp"
+          },
+          "xp_breakdown": {
+            "$ref": "#/components/schemas/XpBreakdownOut"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "is_repeat": {
+            "type": "boolean",
+            "title": "Is Repeat"
+          },
+          "expired_timers": {
+            "type": "integer",
+            "title": "Expired Timers"
+          },
+          "timers_answered": {
+            "type": "integer",
+            "title": "Timers Answered"
+          },
+          "role_chain": {
+            "$ref": "#/components/schemas/RoleChainOut"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/DebriefStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "ending": {
+            "$ref": "#/components/schemas/EndingOut"
+          },
+          "achievements_new": {
+            "items": {
+              "$ref": "#/components/schemas/AchievementNewOut"
+            },
+            "type": "array",
+            "title": "Achievements New"
+          },
+          "challenges_completed": {
+            "items": {
+              "$ref": "#/components/schemas/ChallengeCompletedOut"
+            },
+            "type": "array",
+            "title": "Challenges Completed"
+          },
+          "competencies_delta": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyDeltaOut"
+            },
+            "type": "array",
+            "title": "Competencies Delta"
+          },
+          "level_before": {
+            "$ref": "#/components/schemas/LevelOut"
+          },
+          "level_after": {
+            "$ref": "#/components/schemas/LevelOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "scenario_id",
+          "title",
+          "service_class",
+          "outcome",
+          "loyalty_start",
+          "safety_start",
+          "loyalty_final",
+          "safety_final",
+          "xp",
+          "xp_breakdown",
+          "score",
+          "is_repeat",
+          "expired_timers",
+          "timers_answered",
+          "role_chain",
+          "steps",
+          "ending",
+          "achievements_new",
+          "challenges_completed",
+          "competencies_delta",
+          "level_before",
+          "level_after"
+        ],
+        "title": "DebriefResponse"
+      },
+      "DebriefStep": {
+        "properties": {
+          "step_no": {
+            "type": "integer",
+            "title": "Step No"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "node_text": {
+            "type": "string",
+            "title": "Node Text"
+          },
+          "passenger_says": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passenger Says"
+          },
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id"
+          },
+          "option_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Text"
+          },
+          "expired": {
+            "type": "boolean",
+            "title": "Expired"
+          },
+          "timer_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timer Seconds"
+          },
+          "answered_in_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered In Seconds"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          },
+          "better": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Better"
+          },
+          "best_option": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BestOptionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "type": "array",
+            "title": "Refs"
+          },
+          "loyalty_before": {
+            "type": "integer",
+            "title": "Loyalty Before"
+          },
+          "loyalty_after": {
+            "type": "integer",
+            "title": "Loyalty After"
+          },
+          "safety_before": {
+            "type": "integer",
+            "title": "Safety Before"
+          },
+          "safety_after": {
+            "type": "integer",
+            "title": "Safety After"
+          },
+          "effects": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Effects"
+          },
+          "competencies": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Competencies"
+          },
+          "delayed_applied": {
+            "items": {
+              "$ref": "#/components/schemas/DelayedAppliedOut"
+            },
+            "type": "array",
+            "title": "Delayed Applied"
+          },
+          "role_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Step"
+          },
+          "escalation_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Target"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_no",
+          "node_id",
+          "node_text",
+          "passenger_says",
+          "option_id",
+          "option_text",
+          "expired",
+          "timer_seconds",
+          "answered_in_seconds",
+          "verdict",
+          "why",
+          "better",
+          "best_option",
+          "refs",
+          "loyalty_before",
+          "loyalty_after",
+          "safety_before",
+          "safety_after",
+          "effects",
+          "competencies",
+          "delayed_applied",
+          "role_step",
+          "escalation_target"
+        ],
+        "title": "DebriefStep"
+      },
+      "DelayedAppliedOut": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "effects": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Effects"
+          },
+          "cancelled": {
+            "type": "boolean",
+            "title": "Cancelled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "effects",
+          "cancelled"
+        ],
+        "title": "DelayedAppliedOut"
+      },
+      "DemoAccount": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "role",
+          "brigade",
+          "depot",
+          "note"
+        ],
+        "title": "DemoAccount"
+      },
+      "EmployeeOut": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "role",
+          "brigade",
+          "depot"
+        ],
+        "title": "EmployeeOut"
+      },
+      "EmployeeResultsOut": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          },
+          "xp_total": {
+            "type": "integer",
+            "title": "Xp Total"
+          },
+          "level": {
+            "$ref": "#/components/schemas/LevelOut"
+          },
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationCompetencyOut"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ResultItem"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "achievements": {
+            "items": {
+              "$ref": "#/components/schemas/AchievementRef"
+            },
+            "type": "array",
+            "title": "Achievements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "role",
+          "brigade",
+          "depot",
+          "xp_total",
+          "level",
+          "competencies",
+          "runs",
+          "achievements"
+        ],
+        "title": "EmployeeResultsOut"
+      },
+      "EndingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/RefOut"
+            },
+            "type": "array",
+            "title": "Refs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "text",
+          "summary",
+          "refs"
+        ],
+        "title": "EndingOut"
+      },
+      "EscalationOut": {
+        "properties": {
+          "critical_runs": {
+            "type": "integer",
+            "title": "Critical Runs"
+          },
+          "on_time": {
+            "type": "integer",
+            "title": "On Time"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "needless": {
+            "type": "integer",
+            "title": "Needless"
+          }
+        },
+        "type": "object",
+        "required": [
+          "critical_runs",
+          "on_time",
+          "share",
+          "needless"
+        ],
+        "title": "EscalationOut"
+      },
+      "EventOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "event_type",
+          "payload",
+          "created_at",
+          "delivered_at"
+        ],
+        "title": "EventOut"
+      },
+      "EventsPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_after_id": {
+            "type": "integer",
+            "title": "Next After Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_after_id"
+        ],
+        "title": "EventsPage"
+      },
+      "ExpireRequest": {
+        "properties": {
+          "step_no": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step No"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_no"
+        ],
+        "title": "ExpireRequest"
+      },
+      "ExpiringBonusOut": {
+        "properties": {
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "points",
+          "reason",
+          "expires_at"
+        ],
+        "title": "ExpiringBonusOut"
+      },
+      "FilterOption": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title"
+        ],
+        "title": "FilterOption"
+      },
+      "FiltersResponse": {
+        "properties": {
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/FilterOption"
+            },
+            "type": "array",
+            "title": "Classes"
+          },
+          "difficulties": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Difficulties"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competencies",
+          "classes",
+          "difficulties"
+        ],
+        "title": "FiltersResponse"
+      },
+      "GraphResponse": {
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "nodes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "paths": {
+            "type": "integer",
+            "title": "Paths"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Outcomes"
+          },
+          "scale_ranges": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Scale Ranges"
+          },
+          "mermaid": {
+            "type": "string",
+            "title": "Mermaid"
+          },
+          "yaml_excerpt": {
+            "type": "string",
+            "title": "Yaml Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario_id",
+          "title",
+          "nodes",
+          "edges",
+          "paths",
+          "outcomes",
+          "scale_ranges",
+          "mermaid",
+          "yaml_excerpt"
+        ],
+        "title": "GraphResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "scenarios": {
+            "type": "integer",
+            "title": "Scenarios"
+          },
+          "db": {
+            "type": "string",
+            "title": "Db"
+          },
+          "content_errors": {
+            "type": "integer",
+            "title": "Content Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "scenarios",
+          "db",
+          "content_errors"
+        ],
+        "title": "HealthResponse"
+      },
+      "IntegrationCompetencyOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "mastery": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mastery"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "runs_assessed": {
+            "type": "integer",
+            "title": "Runs Assessed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "mastery",
+          "status",
+          "runs_assessed"
+        ],
+        "title": "IntegrationCompetencyOut"
+      },
+      "LastRunOut": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "xp": {
+            "type": "integer",
+            "title": "Xp"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "finished_at": {
+            "type": "string",
+            "title": "Finished At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "scenario_id",
+          "title",
+          "outcome",
+          "xp",
+          "score",
+          "finished_at"
+        ],
+        "title": "LastRunOut"
+      },
+      "LastStepOut": {
+        "properties": {
+          "step_no": {
+            "type": "integer",
+            "title": "Step No"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option Id"
+          },
+          "expired": {
+            "type": "boolean",
+            "title": "Expired"
+          },
+          "loyalty_before": {
+            "type": "integer",
+            "title": "Loyalty Before"
+          },
+          "safety_before": {
+            "type": "integer",
+            "title": "Safety Before"
+          },
+          "loyalty_after": {
+            "type": "integer",
+            "title": "Loyalty After"
+          },
+          "safety_after": {
+            "type": "integer",
+            "title": "Safety After"
+          },
+          "effects": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Effects"
+          },
+          "competencies": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Competencies"
+          },
+          "delayed_applied": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Delayed Applied"
+          },
+          "role_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Step"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_no",
+          "node_id",
+          "option_id",
+          "expired",
+          "loyalty_before",
+          "safety_before",
+          "loyalty_after",
+          "safety_after",
+          "effects",
+          "competencies",
+          "delayed_applied",
+          "role_step"
+        ],
+        "title": "LastStepOut"
+      },
+      "LeaderboardResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "title": "Scope"
+          },
+          "scope_title": {
+            "type": "string",
+            "title": "Scope Title"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "me": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LeaderboardRow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "scope_title",
+          "rows",
+          "me"
+        ],
+        "title": "LeaderboardResponse"
+      },
+      "LeaderboardRow": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "best_scores_sum": {
+            "type": "integer",
+            "title": "Best Scores Sum"
+          },
+          "bonus_points": {
+            "type": "integer",
+            "title": "Bonus Points"
+          },
+          "achievements": {
+            "type": "integer",
+            "title": "Achievements"
+          },
+          "is_me": {
+            "type": "boolean",
+            "title": "Is Me"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "employee_code",
+          "display_name",
+          "brigade",
+          "depot",
+          "score",
+          "best_scores_sum",
+          "bonus_points",
+          "achievements",
+          "is_me"
+        ],
+        "title": "LeaderboardRow"
+      },
+      "LevelOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "threshold": {
+            "type": "integer",
+            "title": "Threshold"
+          },
+          "next_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Threshold"
+          },
+          "next_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "threshold",
+          "next_threshold",
+          "next_title"
+        ],
+        "title": "LevelOut"
+      },
+      "LoginRequest": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Employee Code"
+          },
+          "pin": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Pin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "pin"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "expires_at",
+          "employee"
+        ],
+        "title": "LoginResponse"
+      },
+      "MistakeOut": {
+        "properties": {
+          "competency": {
+            "type": "string",
+            "title": "Competency"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "last_scenario_id": {
+            "type": "string",
+            "title": "Last Scenario Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "competency",
+          "title",
+          "count",
+          "last_scenario_id"
+        ],
+        "title": "MistakeOut"
+      },
+      "NodeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "passenger_says": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passenger Says"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "timer_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timer Seconds"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionOut"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "text",
+          "passenger_says",
+          "title",
+          "timer_seconds",
+          "options"
+        ],
+        "title": "NodeOut"
+      },
+      "NotificationOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "payload",
+          "created_at",
+          "read_at"
+        ],
+        "title": "NotificationOut"
+      },
+      "OkResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "OkResponse"
+      },
+      "OptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "role_step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Step"
+          },
+          "escalation_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Target"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "role_step",
+          "escalation_target"
+        ],
+        "title": "OptionOut"
+      },
+      "ProfileResponse": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "depot": {
+            "type": "string",
+            "title": "Depot"
+          },
+          "xp_total": {
+            "type": "integer",
+            "title": "Xp Total"
+          },
+          "level": {
+            "$ref": "#/components/schemas/LevelOut"
+          },
+          "xp_to_next": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xp To Next"
+          },
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/CompetencyOut"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "achievements_count": {
+            "type": "integer",
+            "title": "Achievements Count"
+          },
+          "achievements_total": {
+            "type": "integer",
+            "title": "Achievements Total"
+          },
+          "runs_count": {
+            "type": "integer",
+            "title": "Runs Count"
+          },
+          "rank_brigade": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Brigade"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bonus": {
+            "$ref": "#/components/schemas/BonusOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "role",
+          "brigade",
+          "depot",
+          "xp_total",
+          "level",
+          "xp_to_next",
+          "competencies",
+          "achievements_count",
+          "achievements_total",
+          "runs_count",
+          "rank_brigade",
+          "last_run",
+          "bonus"
+        ],
+        "title": "ProfileResponse"
+      },
+      "ReadAllResponse": {
+        "properties": {
+          "read": {
+            "type": "integer",
+            "title": "Read"
+          }
+        },
+        "type": "object",
+        "required": [
+          "read"
+        ],
+        "title": "ReadAllResponse"
+      },
+      "RecommendationOut": {
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "competency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competency"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario_id",
+          "title",
+          "competency",
+          "reason"
+        ],
+        "title": "RecommendationOut"
+      },
+      "RefOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          },
+          "phrase": {
+            "type": "string",
+            "title": "Phrase"
+          },
+          "document": {
+            "type": "string",
+            "title": "Document"
+          },
+          "clause": {
+            "type": "string",
+            "title": "Clause"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "reconstructed": {
+            "type": "boolean",
+            "title": "Reconstructed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "quote",
+          "phrase",
+          "document",
+          "clause",
+          "number",
+          "reconstructed"
+        ],
+        "title": "RefOut"
+      },
+      "ReloadReport": {
+        "properties": {
+          "loaded": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Loaded"
+          },
+          "new": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "New"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Removed"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ContentErrorOut"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "notified": {
+            "type": "integer",
+            "title": "Notified"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loaded",
+          "new",
+          "removed",
+          "errors",
+          "summary",
+          "notified"
+        ],
+        "title": "ReloadReport"
+      },
+      "ResultItem": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "brigade": {
+            "type": "string",
+            "title": "Brigade"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "scenario_version": {
+            "type": "integer",
+            "title": "Scenario Version"
+          },
+          "finished_at": {
+            "type": "string",
+            "title": "Finished At"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "loyalty_final": {
+            "type": "integer",
+            "title": "Loyalty Final"
+          },
+          "safety_final": {
+            "type": "integer",
+            "title": "Safety Final"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "xp": {
+            "type": "integer",
+            "title": "Xp"
+          },
+          "competencies": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Competencies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "employee_code",
+          "brigade",
+          "scenario_id",
+          "scenario_version",
+          "finished_at",
+          "outcome",
+          "loyalty_final",
+          "safety_final",
+          "score",
+          "xp",
+          "competencies"
+        ],
+        "title": "ResultItem"
+      },
+      "ResultsPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ResultItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ResultsPage"
+      },
+      "RoleChainOut": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "next_expected": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Expected"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "next_expected",
+          "complete"
+        ],
+        "title": "RoleChainOut"
+      },
+      "RunHistoryItem": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "loyalty_final": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loyalty Final"
+          },
+          "safety_final": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safety Final"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "xp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xp"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "expired_timers": {
+            "type": "integer",
+            "title": "Expired Timers"
+          },
+          "service_class": {
+            "type": "string",
+            "title": "Service Class"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "scenario_id",
+          "title",
+          "status",
+          "outcome",
+          "loyalty_final",
+          "safety_final",
+          "score",
+          "xp",
+          "started_at",
+          "finished_at",
+          "expired_timers",
+          "service_class"
+        ],
+        "title": "RunHistoryItem"
+      },
+      "RunState": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "step_no": {
+            "type": "integer",
+            "title": "Step No"
+          },
+          "loyalty": {
+            "type": "integer",
+            "title": "Loyalty"
+          },
+          "safety": {
+            "type": "integer",
+            "title": "Safety"
+          },
+          "flags": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Flags"
+          },
+          "node": {
+            "$ref": "#/components/schemas/NodeOut"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "server_now": {
+            "type": "string",
+            "title": "Server Now"
+          },
+          "expired": {
+            "type": "boolean",
+            "title": "Expired"
+          },
+          "last_step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastStepOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "$ref": "#/components/schemas/ContextOut"
+          },
+          "role_chain": {
+            "$ref": "#/components/schemas/RoleChainOut"
+          },
+          "expired_timers": {
+            "type": "integer",
+            "title": "Expired Timers"
+          },
+          "timers_answered": {
+            "type": "integer",
+            "title": "Timers Answered"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "xp": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "scenario_id",
+          "title",
+          "status",
+          "step_no",
+          "loyalty",
+          "safety",
+          "flags",
+          "node",
+          "deadline_at",
+          "server_now",
+          "expired",
+          "last_step",
+          "context",
+          "role_chain",
+          "expired_timers",
+          "timers_answered",
+          "outcome",
+          "xp"
+        ],
+        "title": "RunState"
+      },
+      "ScenarioCard": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "difficulty": {
+            "type": "integer",
+            "title": "Difficulty"
+          },
+          "critical": {
+            "type": "boolean",
+            "title": "Critical"
+          },
+          "service_class": {
+            "type": "string",
+            "title": "Service Class"
+          },
+          "service_class_title": {
+            "type": "string",
+            "title": "Service Class Title"
+          },
+          "competencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "competencies_titles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competencies Titles"
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "title": "Estimated Minutes"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "has_timers": {
+            "type": "boolean",
+            "title": "Has Timers"
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count"
+          },
+          "endings_count": {
+            "type": "integer",
+            "title": "Endings Count"
+          },
+          "best_outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Outcome"
+          },
+          "runs_count": {
+            "type": "integer",
+            "title": "Runs Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "difficulty",
+          "critical",
+          "service_class",
+          "service_class_title",
+          "competencies",
+          "competencies_titles",
+          "estimated_minutes",
+          "tags",
+          "has_timers",
+          "node_count",
+          "endings_count",
+          "best_outcome",
+          "runs_count"
+        ],
+        "title": "ScenarioCard"
+      },
+      "ScenarioDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "difficulty": {
+            "type": "integer",
+            "title": "Difficulty"
+          },
+          "critical": {
+            "type": "boolean",
+            "title": "Critical"
+          },
+          "service_class": {
+            "type": "string",
+            "title": "Service Class"
+          },
+          "service_class_title": {
+            "type": "string",
+            "title": "Service Class Title"
+          },
+          "competencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "competencies_titles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Competencies Titles"
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "title": "Estimated Minutes"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "has_timers": {
+            "type": "boolean",
+            "title": "Has Timers"
+          },
+          "node_count": {
+            "type": "integer",
+            "title": "Node Count"
+          },
+          "endings_count": {
+            "type": "integer",
+            "title": "Endings Count"
+          },
+          "best_outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Outcome"
+          },
+          "runs_count": {
+            "type": "integer",
+            "title": "Runs Count"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "role_model": {
+            "type": "boolean",
+            "title": "Role Model"
+          },
+          "source_situations": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Source Situations"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ContextOut"
+          },
+          "paths": {
+            "type": "integer",
+            "title": "Paths"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Outcomes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "difficulty",
+          "critical",
+          "service_class",
+          "service_class_title",
+          "competencies",
+          "competencies_titles",
+          "estimated_minutes",
+          "tags",
+          "has_timers",
+          "node_count",
+          "endings_count",
+          "best_outcome",
+          "runs_count",
+          "version",
+          "role_model",
+          "source_situations",
+          "context",
+          "paths",
+          "outcomes"
+        ],
+        "title": "ScenarioDetail"
+      },
+      "StartSessionRequest": {
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Scenario Id"
+          },
+          "service_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Class"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario_id"
+        ],
+        "title": "StartSessionRequest"
+      },
+      "TeamAnalyticsResponse": {
+        "properties": {
+          "brigade": {
+            "$ref": "#/components/schemas/BrigadeOut"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberOut"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "competencies": {
+            "items": {
+              "$ref": "#/components/schemas/TeamCompetencyOut"
+            },
+            "type": "array",
+            "title": "Competencies"
+          },
+          "brigade_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Brigade Gaps"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationOut"
+            },
+            "type": "array",
+            "title": "Recommendations"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "brigade",
+          "members",
+          "competencies",
+          "brigade_gaps",
+          "recommendations",
+          "summary"
+        ],
+        "title": "TeamAnalyticsResponse"
+      },
+      "TeamCompetencyOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "mean_mastery": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Mastery"
+          },
+          "weak_count": {
+            "type": "integer",
+            "title": "Weak Count"
+          },
+          "gap_count": {
+            "type": "integer",
+            "title": "Gap Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "mean_mastery",
+          "weak_count",
+          "gap_count"
+        ],
+        "title": "TeamCompetencyOut"
+      },
+      "TeamMemberOut": {
+        "properties": {
+          "employee_code": {
+            "type": "string",
+            "title": "Employee Code"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "xp_total": {
+            "type": "integer",
+            "title": "Xp Total"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "incidents": {
+            "type": "integer",
+            "title": "Incidents"
+          },
+          "weak": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weak"
+          },
+          "gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "employee_code",
+          "display_name",
+          "xp_total",
+          "runs",
+          "incidents",
+          "weak",
+          "gaps",
+          "last_run_at"
+        ],
+        "title": "TeamMemberOut"
+      },
+      "TempoOut": {
+        "properties": {
+          "answered_avg_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered Avg Seconds"
+          },
+          "timers_answered": {
+            "type": "integer",
+            "title": "Timers Answered"
+          },
+          "timers_expired": {
+            "type": "integer",
+            "title": "Timers Expired"
+          },
+          "on_time_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On Time Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answered_avg_seconds",
+          "timers_answered",
+          "timers_expired",
+          "on_time_share"
+        ],
+        "title": "TempoOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WeekOut": {
+        "properties": {
+          "week_start": {
+            "type": "string",
+            "title": "Week Start"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "avg_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Score"
+          },
+          "incidents": {
+            "type": "integer",
+            "title": "Incidents"
+          },
+          "xp": {
+            "type": "integer",
+            "title": "Xp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week_start",
+          "runs",
+          "avg_score",
+          "incidents",
+          "xp"
+        ],
+        "title": "WeekOut"
+      },
+      "XpBreakdownOut": {
+        "properties": {
+          "base": {
+            "type": "integer",
+            "title": "Base"
+          },
+          "scales": {
+            "type": "integer",
+            "title": "Scales"
+          },
+          "tempo": {
+            "type": "integer",
+            "title": "Tempo"
+          },
+          "role": {
+            "type": "integer",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base",
+          "scales",
+          "tempo",
+          "role"
+        ],
+        "title": "XpBreakdownOut"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
