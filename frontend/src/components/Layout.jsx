@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useLoad } from '../hooks/useLoad.js';
-import { api, getToken, setToken } from '../lib/api.js';
+import { api, setToken } from '../lib/api.js';
 
 // Шапка всех экранов после входа: имя, уровень, непрочитанные уведомления, навигация.
 // Профиль и уведомления перечитываются при каждом переходе, чтобы после прохождения
@@ -12,12 +11,6 @@ export default function Layout() {
   const navigate = useNavigate();
   const profile = useLoad(() => api.get('/api/profile'), location.pathname);
   const notifications = useLoad(() => api.get('/api/notifications'), location.pathname);
-
-  useEffect(() => {
-    if (profile.error && !getToken()) {
-      navigate('/login', { replace: true });
-    }
-  }, [profile.error, navigate]);
 
   async function logout() {
     try {

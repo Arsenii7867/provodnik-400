@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import ScaleBar from '../components/ScaleBar.jsx';
@@ -8,7 +8,6 @@ import { api } from '../lib/api.js';
 import { ROLE_STEPS, outcomeTitle, plural, roleStepTitle, signed } from '../lib/labels.js';
 import { scaleDelta } from '../lib/timer.js';
 
-const EXPIRE_RETRIES = 5;
 const SERVER_WAIT_MS = 3000;
 const EXPIRED_NOTICE = 'Время вышло: решение принято без вас, сервер повёл сценарий по ветке истечения.';
 
@@ -115,8 +114,10 @@ export default function PlayPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [serverWaits, setServerWaits] = useState(false);
-  const expiringStep = useRef(null);
-  const earlyReports = useRef({ step: null, count: 0 });
+  const status = run?.status;
+  const loadedRunId = run?.run_id;
+  const stepNo = run?.step_no;
+  const deadlineAt = run?.deadline_at;
   const remaining = useServerClock(run && run.status === 'active' ? run.deadline_at : null);
 
   const load = useCallback(async () => {
@@ -129,11 +130,12 @@ export default function PlayPage() {
     load().catch((err) => setError(err.message));
   }, [load]);
 
-  function accept(next) {
+  const accept = useCallback((next) => {
     setRun(next);
+    setError('');
     setNotice(next.expired ? EXPIRED_NOTICE : '');
     setServerWaits(false);
-  }
+  }, []);
 
   async function send(path, body) {
     setBusy(true);
@@ -152,45 +154,47 @@ export default function PlayPage() {
     }
   }
 
-  async function reportExpiry(stepNo) {
-    try {
-      accept(await api.post(`/api/sessions/${runId}/expire`, { step_no: stepNo }));
-    } catch (err) {
-      if (STALE_CODES.has(err.code)) {
-        await load().catch((inner) => setError(inner.message));
-      } else if (err.code === 'too_early') {
-        // по часам сервера время ещё есть: свежий server_now поправит смещение, и отсчёт
-        // дойдёт до нуля ещё раз; после нескольких отказов подряд повторяем реже и говорим об этом
-        const early = earlyReports.current;
-        early.count = early.step === stepNo ? early.count + 1 : 1;
-        early.step = stepNo;
-        await load().catch((inner) => setError(inner.message));
-        if (early.count < EXPIRE_RETRIES) {
-          expiringStep.current = null;
-        } else {
-          setServerWaits(true);
-          setTimeout(() => {
-            expiringStep.current = null;
-          }, SERVER_WAIT_MS);
+  // Один запрос на истёкший ход; временные ошибки повторяем с паузой.
+  // Смена хода или уход со страницы отменяет повтор и применение запоздавшего ответа.
+  useEffect(() => {
+    if (String(loadedRunId) !== runId || status !== 'active' || !deadlineAt || remaining !== 0 || busy) {
+      return;
+    }
+    let cancelled = false;
+    let retryTimer;
+
+    async function reportExpiry() {
+      try {
+        const next = await api.post(`/api/sessions/${runId}/expire`, { step_no: stepNo });
+        if (!cancelled) accept(next);
+      } catch (err) {
+        if (cancelled) return;
+        if (STALE_CODES.has(err.code) || err.code === 'too_early') {
+          try {
+            const fresh = await api.get(`/api/sessions/${runId}`);
+            if (cancelled) return;
+            accept(fresh);
+            if (err.code !== 'too_early') return;
+            // Свежий server_now исправляет смещение часов; если ноль остался, повторяем с паузой.
+            setServerWaits(true);
+          } catch (inner) {
+            if (cancelled) return;
+            err = inner;
+          }
         }
-      } else {
-        setError(err.message);
+        if (err.code !== 'too_early') setError(err.message);
+        if (err.code === 'too_early' || err.status === 0 || err.status >= 500) {
+          retryTimer = setTimeout(reportExpiry, SERVER_WAIT_MS);
+        }
       }
     }
-  }
 
-  // без списка зависимостей: остаток меняется каждые 250 мс, а от повторной отправки за один
-  // и тот же ход защищает expiringStep
-  useEffect(() => {
-    if (!run || run.status !== 'active' || !run.deadline_at || remaining !== 0 || busy) {
-      return;
-    }
-    if (expiringStep.current === run.step_no) {
-      return;
-    }
-    expiringStep.current = run.step_no;
-    reportExpiry(run.step_no);
-  });
+    reportExpiry();
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+    };
+  }, [runId, loadedRunId, status, stepNo, deadlineAt, remaining, busy, accept]);
 
   if (error && !run) {
     return (

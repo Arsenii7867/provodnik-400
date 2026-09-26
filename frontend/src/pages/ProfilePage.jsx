@@ -29,7 +29,7 @@ function LevelCard({ profile }) {
           ? 'Это высший уровень.'
           : `Порог уровня «${level.next_title}» ${level.next_threshold} XP, осталось ${profile.xp_to_next}.`}
       </p>
-      <div className="xp-bar" role="progressbar" aria-valuenow={profile.xp_total}>
+      <div className="xp-bar" role="progressbar" aria-label="Прогресс уровня" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}>
         <div className="xp-bar-fill" style={{ width: `${Math.round(share * 100)}%` }} />
       </div>
       <ul className="stats">

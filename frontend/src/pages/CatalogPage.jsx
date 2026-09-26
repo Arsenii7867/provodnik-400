@@ -85,8 +85,8 @@ function Filters({ filter, setFilter, options }) {
 
 function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy, highlighted }) {
   const [serviceClass, setServiceClass] = useState('');
-  // один ключ на карточку: повтор «Начать» после сетевой ошибки вернёт уже созданное прохождение
-  const [startKey] = useState(newIdempotencyKey);
+  // Повтор прежнего выбора использует тот же ключ; смена класса начинает новый запрос.
+  const [startKey, setStartKey] = useState(newIdempotencyKey);
   return (
     <article id={scenario.id} className={highlighted ? 'scenario-card scenario-card-target' : 'scenario-card'}>
       <div className="scenario-head">
@@ -118,7 +118,14 @@ function ScenarioCard({ scenario, classes, maxDifficulty, onStart, busy, highlig
       <div className="scenario-actions">
         <label>
           Класс
-          <select value={serviceClass} onChange={(event) => setServiceClass(event.target.value)}>
+          <select
+            value={serviceClass}
+            disabled={busy}
+            onChange={(event) => {
+              setServiceClass(event.target.value);
+              setStartKey(newIdempotencyKey());
+            }}
+          >
             <option value="">как в сценарии</option>
             {classes.map((item) => (
               <option key={item.code} value={item.code}>

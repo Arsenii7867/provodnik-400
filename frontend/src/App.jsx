@@ -1,7 +1,8 @@
+import { useSyncExternalStore } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import Layout from './components/Layout.jsx';
-import { getToken } from './lib/api.js';
+import { getToken, subscribeToken } from './lib/api.js';
 import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import CatalogPage from './pages/CatalogPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -13,7 +14,8 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import ScenarioMapPage from './pages/ScenarioMapPage.jsx';
 
 function RequireAuth({ children }) {
-  return getToken() ? children : <Navigate to="/login" replace />;
+  const token = useSyncExternalStore(subscribeToken, getToken);
+  return token ? children : <Navigate to="/login" replace />;
 }
 
 export default function App() {

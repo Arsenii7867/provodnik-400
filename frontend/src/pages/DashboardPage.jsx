@@ -12,7 +12,7 @@ function LevelCard({ profile }) {
   return (
     <section className="card">
       <h2>Уровень: {level.title}</h2>
-      <div className="xp-bar" role="progressbar" aria-valuenow={profile.xp_total}>
+      <div className="xp-bar" role="progressbar" aria-label="Прогресс уровня" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(share * 100)}>
         <div className="xp-bar-fill" style={{ width: `${Math.round(share * 100)}%` }} />
       </div>
       <p>
@@ -179,7 +179,7 @@ function Notifications({ notifications }) {
   async function markRead(id) {
     try {
       const updated = await api.post(`/api/notifications/${id}/read`);
-      notifications.setData(items.map((item) => (item.id === id ? updated : item)));
+      notifications.setData((current) => (current || []).map((item) => (item.id === id ? updated : item)));
       setError('');
     } catch (err) {
       setError(err.message);

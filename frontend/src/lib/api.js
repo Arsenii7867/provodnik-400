@@ -27,6 +27,16 @@ export function setToken(token) {
   } else {
     localStorage.removeItem(TOKEN_KEY);
   }
+  window.dispatchEvent(new Event('provodnik-auth-change'));
+}
+
+export function subscribeToken(listener) {
+  window.addEventListener('provodnik-auth-change', listener);
+  window.addEventListener('storage', listener);
+  return () => {
+    window.removeEventListener('provodnik-auth-change', listener);
+    window.removeEventListener('storage', listener);
+  };
 }
 
 export function getServerOffset() {
@@ -59,18 +69,19 @@ async function request(method, path, body, extraHeaders = {}) {
     init.body = JSON.stringify(body);
   }
   let response;
+  let text;
   try {
     response = await fetch(path, init);
+    text = await response.text();
   } catch {
     throw new ApiError(0, 'network', 'Сервер недоступен, попробуйте ещё раз через минуту');
   }
-  const text = await response.text();
   const data = text ? parseJson(text) : null;
   if (!response.ok) {
     const error = (data && data.error) || {};
     const message = error.message || `Сервер ответил ошибкой ${response.status}`;
     // просроченный или отозванный токен бесполезен: убираем его, чтобы экраны отправили на вход
-    if (response.status === 401 && token && String(error.code).startsWith('token_')) {
+    if (response.status === 401 && token && getToken() === token && String(error.code).startsWith('token_')) {
       setToken(null);
     }
     throw new ApiError(response.status, error.code || 'http_error', message, error.details);
