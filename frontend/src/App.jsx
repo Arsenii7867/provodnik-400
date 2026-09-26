@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import Layout from './components/Layout.jsx';
 import { getToken } from './lib/api.js';
+import CatalogPage from './pages/CatalogPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 
@@ -21,6 +22,7 @@ export default function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="/scenarios" element={<CatalogPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
