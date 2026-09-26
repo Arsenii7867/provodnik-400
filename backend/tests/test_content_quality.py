@@ -293,6 +293,36 @@ def test_trap_options_never_reach_exemplary(scenario, content):
         assert traps == [], f"образцовый путь с ловушкой {traps}: {[move for _, move in prefix]}"
 
 
+def option_by_id(scenario, node_id, option_id):
+    for option in scenario["nodes"][node_id].get("options") or []:
+        if option["id"] == option_id:
+            return option
+    return None
+
+
+def escalation_step(scenario, prefix):
+    """Номер первого хода (с единицы, события считаются, как step_no в run_steps), на котором
+    бригада вызвана вариантом с вердиктом best или ok; None, если вызова не было."""
+    for step_no, (node_id, move) in enumerate(prefix, start=1):
+        option = option_by_id(scenario, node_id, move)
+        if option and option.get("escalation_target") and option["debrief"]["verdict"] in ("best", "ok"):
+            return step_no
+    return None
+
+
+def test_exemplary_paths_escalate_in_time(scenario, content):
+    """Сценарий, который объявляет escalation_expected_by_step, не хвалит «образцово» за вызов
+    бригады позже этого шага: момент эскалации оценивается отдельно, и аналитика считает его по
+    тому же правилу, что и этот тест."""
+    expected = scenario["context"].get("escalation_expected_by_step")
+    if expected is None:
+        pytest.skip("сценарий не задаёт шаг ожидаемой эскалации")
+    for _, prefix in exemplary_paths(scenario, content):
+        step = escalation_step(scenario, prefix)
+        detail = f"эскалация на шаге {step}, ждали не позже {expected}: {[move for _, move in prefix]}"
+        assert step is not None and step <= expected, detail
+
+
 def test_best_path_gives_full_mastery(scenario, content):
     """Хотя бы один образцовый путь набирает по каждой компетенции всё, что на нём оценивалось:
     иначе безупречное прохождение показывает в аналитике владение ниже единицы."""

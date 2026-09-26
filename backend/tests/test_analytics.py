@@ -7,7 +7,7 @@ from tests.test_api_progress import play
 from tests.test_api_sessions import error_code, play_best_path, start
 
 ESCALATION_WEAK_MEDICAL = ["run_for_chief", "leave_to_meet_chief", "just_wait"]
-ESCALATION_WEAK_SMOKING = ["harsh_demand", "threaten_police", "downplay_to_chief"]
+ESCALATION_WEAK_SMOKING = ["harsh_demand", "threaten_police", "side_with_passenger"]
 SMOKING_BEST = ["acknowledge_ask_device", "rule_and_call_ptb", "offer_bistro_for_beer", "report_ecig_detail"]
 # после истечения таймера вызов соседей с вердиктом bad считается лишней эскалацией
 NEEDLESS_AFTER_EXPIRE = ["ask_neighbors_help", "ask_history_only", "pa_medic", "brief_medic", "announce_calm"]
