@@ -20,6 +20,17 @@ python -m venv .venv
 (проводники), `VSM-2001` (наставник), PIN `1234` (переменная `DEMO_PIN`). Все сотрудники
 синтетические. Сид идемпотентен, при `AUTO_SEED=1` сервер сам заполняет пустую базу.
 
+Тесты и линтер живут в отдельном файле зависимостей, из папки `backend`:
+
+```
+.venv/Scripts/pip install -r requirements-dev.txt
+.venv/Scripts/python -m pytest -q
+.venv/Scripts/python -m app.scenarios.validator ../content
+```
+
+Все проверки разом (тесты, ruff, валидатор сценариев, тесты и сборка фронта) запускает
+`scripts/check.sh` из корня репозитория.
+
 Фронт (node 22 и новее), из папки `frontend`:
 
 ```
