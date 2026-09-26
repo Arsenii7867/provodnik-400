@@ -1,0 +1,91 @@
+# ожидаемая ошибка: expire_node_reachable_by_option
+# в узел истечения ведёт и обычный вариант
+id: expire_reachable_by_option
+version: 1
+title: Проверочный сценарий
+summary: Короткий сценарий, на котором проверяется сам валидатор.
+source_situations: [19]
+difficulty: 1
+critical: false
+tags: [проверка]
+competencies: [medical]
+role_model: false
+estimated_minutes: 1
+context:
+  service_class: standard
+  segment: перегон
+  next_station_minutes: 5
+  time_of_day: день
+  passenger: {label: пассажир на месте 1А, state: жалуется на боль в груди}
+  crew_available: [chief]
+start: {node: intro, loyalty: 50, safety: 50, flags: {}}
+nodes:
+  intro:
+    type: dialog
+    text: Пассажиру на месте 1А плохо, он держится за грудь.
+    timer:
+      seconds: 20
+      on_expire:
+        next: too_late
+        effects: {loyalty: -20, safety: -20}
+        debrief:
+          why: Промедление при боли в груди опасно.
+          better: Сразу вызвать начальника поезда.
+          refs: [sit_19]
+    options:
+      - id: call_chief
+        text: Вызываю начальника поезда по рации и остаюсь рядом.
+        effects: {loyalty: 10, safety: 20}
+        competencies: {medical: 2}
+        next: ending_good
+        debrief:
+          verdict: best
+          why: Реакция карточки 19.
+          refs: [sit_19]
+      - id: give_pills
+        text: Даю пассажиру своё лекарство.
+        effects: {loyalty: 10, safety: -30}
+        competencies: {medical: -3}
+        next: ending_bad
+        debrief:
+          verdict: bad
+          why: Личные лекарства выдавать нельзя.
+          better: Действовать через начальника поезда.
+          refs: [sit_28]
+      - id: wait
+        text: Жду, что пассажиру станет лучше само.
+        effects: {safety: -10}
+        next: too_late
+        debrief:
+          verdict: bad
+          why: Время уходит.
+          better: Вызвать начальника поезда.
+          refs: [sit_19]
+      - id: talk
+        text: Успокаиваю пассажира разговором.
+        effects: {loyalty: 5}
+        next: ending_good
+        debrief:
+          verdict: ok
+          why: Контакт есть, помощи нет.
+          better: Успокоить и вызвать начальника поезда.
+          refs: [sit_19]
+  too_late:
+    type: event
+    text: Пассажиру стало хуже.
+    next: ending_bad
+  ending_good:
+    type: ending
+    title: Помощь организована
+    text: Начальник поезда организовал помощь.
+    debrief:
+      summary: Вызов сделан вовремя.
+      refs: [sit_19]
+  ending_bad:
+    type: ending
+    title: Инцидент
+    text: Пассажир пострадал.
+    forced_outcome: incident
+    debrief:
+      summary: Помощь не организована.
+      refs: [sit_28]
