@@ -4,7 +4,7 @@
 
 import re
 
-from app.scenarios.analysis import ROLE_CHAIN
+from app.scenarios.engine import ROLE_CHAIN
 from app.scenarios.findings import is_int, is_text
 
 ESCALATION_TARGETS = "chief ptb engineer police medics_station pa_announcement driver station".split()

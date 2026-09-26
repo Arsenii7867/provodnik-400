@@ -1,0 +1,214 @@
+# Сценарий для тестов движка: вариант только для бизнеса и первого класса, таймер с секундами
+# по классам, условия по прошлому выбору и по шкале, отложенное последствие с отменой,
+# полная цепочка ролевой модели и концовка с принудительным исходом.
+id: class_options
+version: 1
+title: Планшет по запросу
+summary: Пассажирка просит планшет с фильмами, а в проходе у её кресла стоит чемодан.
+source_situations: [16]
+difficulty: 2
+critical: false
+tags: [сервис, класс, багаж]
+competencies: [empathy, rules, solution, safety]
+role_model: true
+estimated_minutes: 3
+context:
+  service_class: standard
+  segment: перегон Москва, Тверь
+  next_station_minutes: 40
+  time_of_day: день
+  passenger:
+    label: женщина на месте 3С
+    state: скучает, просит планшет с фильмами
+  crew_available: [chief]
+start: {node: intro, loyalty: 50, safety: 60, flags: {}}
+nodes:
+  intro:
+    type: dialog
+    text: Пассажирка на месте 3С нажала кнопку вызова и спрашивает, где обещанный планшет с фильмами.
+    passenger_says: В рекламе был планшет с фильмами. Где он?
+    timer:
+      seconds_by_class: {first: 10, business: 20, comfort: 30, standard: 40}
+      on_expire:
+        next: ignored
+        effects: {loyalty: -10}
+        competencies: {empathy: -1}
+        debrief:
+          why: Норматив ожидания по классу нарушен, пассажирка ждёт ответа дольше положенного.
+          better: Подойти сразу и ответить, даже если ответ отрицательный.
+          refs: [sto_011_10_5]
+    options:
+      - id: acknowledge_ask
+        text: Говорю «Понимаю, дорога долгая», уточняю, что именно ей хочется посмотреть.
+        role_step: acknowledge
+        effects: {loyalty: 10}
+        competencies: {empathy: 2}
+        next: request
+        debrief:
+          verdict: best
+          why: Ситуация признана, пассажирка услышана.
+          refs: [sto_011_10_3]
+      - id: refuse_flat
+        text: Отвечаю «Нет у нас никаких планшетов» и ухожу.
+        effects: {loyalty: -15}
+        competencies: {empathy: -1}
+        next: request
+        debrief:
+          verdict: bad
+          why: Отказ без извинения и объяснения.
+          better: Извиниться и объяснить, что входит в её класс.
+          refs: [sto_011_10_3]
+      - id: promise_check
+        text: Говорю «Уточню и вернусь к Вам», ухожу к начальнику поезда.
+        effects: {loyalty: 5}
+        delayed:
+          - steps: 2
+            effects: {loyalty: -15}
+            text: Пассажирка так и не дождалась ответа и написала жалобу.
+            unless_flags: {returned: true}
+        next: request
+        debrief:
+          verdict: ok
+          why: Обещание вернуться обязывает вернуться.
+          better: Ответить сразу, а уточнять только то, чего не знаешь.
+          refs: [sto_011_10_3]
+  ignored:
+    type: event
+    text: Пассажирка нажала кнопку вызова второй раз и ждёт вас с недовольным лицом.
+    next: request
+  request:
+    type: dialog
+    text: Пассажирка повторяет просьбу про планшет и показывает рекламу на телефоне.
+    options:
+      - id: bring_tablet
+        text: Приношу планшет из служебного отсека и показываю, как включить фильм.
+        when: {service_class: [business, first]}
+        role_step: solution
+        effects: {loyalty: 15}
+        competencies: {solution: 2, rules: 1}
+        next: luggage
+        debrief:
+          verdict: best
+          why: В бизнесе и первом классе планшет предоставляется по запросу.
+          refs: [sto_011_t2_entertainment]
+      - id: explain_class
+        text: Объясняю, что планшет входит в бизнес и первый класс, извиняюсь и предлагаю альтернативу.
+        role_step: rule
+        effects: {loyalty: -5}
+        competencies: {rules: 2}
+        next: alternative
+        debrief:
+          verdict: best
+          why: Отказ с извинением и объяснением причины.
+          refs: [sto_011_10_3, sto_011_t2_entertainment]
+      - id: return_with_answer
+        text: Возвращаюсь с ответом от начальника поезда и предлагаю, что есть в её классе.
+        when: {chosen_any: [promise_check]}
+        role_step: solution
+        effects: {loyalty: 10}
+        competencies: {solution: 1}
+        set_flags: {returned: true}
+        next: luggage
+        debrief:
+          verdict: ok
+          why: Обещание выполнено, ответ получен.
+          better: Знать состав услуг своего класса и отвечать сразу.
+          refs: [sto_011_10_3]
+      - id: give_own_phone
+        text: Даю свой телефон с фильмами, чтобы не спорить.
+        effects: {loyalty: 10, safety: -20}
+        competencies: {rules: -2, safety: -1}
+        next: luggage
+        debrief:
+          verdict: bad
+          why: Личные вещи персонала пассажирам не передаются, а проводник остаётся без связи.
+          better: Объяснить состав услуг класса и предложить то, что в него входит.
+          refs: [sto_011_10_1]
+  alternative:
+    type: dialog
+    text: Пассажирка вздыхает и спрашивает, чем тогда занять четыре часа дороги.
+    options:
+      - id: offer_wifi
+        text: Предлагаю бортовой Wi-Fi и журнал из кармана кресла, показываю, как подключиться.
+        role_step: solution
+        effects: {loyalty: 10}
+        competencies: {solution: 2}
+        next: luggage
+        debrief:
+          verdict: best
+          why: Альтернатива из состава услуг класса.
+          refs: [sto_011_10_3]
+      - id: offer_nothing
+        text: Пожимаю плечами и говорю, что ничем помочь не могу.
+        role_step: solution
+        effects: {loyalty: -5}
+        competencies: {solution: -1}
+        next: luggage
+        debrief:
+          verdict: bad
+          why: Просьба осталась без ответа.
+          better: Предложить хотя бы одну альтернативу.
+          refs: [sto_011_10_3]
+  luggage:
+    type: dialog
+    text: У кресла пассажирки в проходе стоит большой чемодан, тележка с напитками не пройдёт.
+    options:
+      - id: move_to_rack
+        text: Прошу разрешения и переношу чемодан на багажную полку в конце вагона.
+        effects: {safety: 15}
+        competencies: {safety: 2}
+        next: farewell
+        debrief:
+          verdict: best
+          why: Проход свободен, багаж на месте хранения.
+          refs: [sto_011_t2_storage]
+      - id: leave_in_aisle
+        text: Оставляю чемодан в проходе, чтобы не спорить ещё и о нём.
+        effects: {loyalty: 5, safety: -15}
+        competencies: {safety: -2}
+        next: ending_luggage_fall
+        debrief:
+          verdict: bad
+          why: Чемодан в проходе мешает эвакуации и тележке.
+          better: Перенести чемодан на багажную полку.
+          refs: [sto_011_t2_storage]
+  farewell:
+    type: dialog
+    text: Пассажирка подключилась к Wi-Fi и листает журнал.
+    options:
+      - id: thank_assure
+        text: Говорю «Если что-то понадобится, нажмите кнопку вызова, я рядом».
+        when: {loyalty_min: 60}
+        role_step: assure
+        effects: {loyalty: 5}
+        competencies: {empathy: 2}
+        next: ending_calm
+        debrief:
+          verdict: best
+          why: Заверение по ролевой модели.
+          refs: [sto_011_10_1]
+      - id: just_leave
+        text: Молча ухожу к тележке.
+        effects: {loyalty: -5}
+        competencies: {empathy: -1}
+        next: ending_calm
+        debrief:
+          verdict: ok
+          why: Контакт оборван без заверения.
+          better: Сказать, что вы рядом и как вас позвать.
+          refs: [sto_011_10_1]
+  ending_calm:
+    type: ending
+    title: Пассажирка занята фильмом
+    text: До конца поездки пассажирка не жаловалась.
+    debrief:
+      summary: Просьба получила ответ по составу услуг класса.
+      refs: [sto_011_10_3]
+  ending_luggage_fall:
+    type: ending
+    title: Чемодан упал при торможении
+    text: При торможении чемодан упал в проход, начальник поезда составляет акт.
+    forced_outcome: incident
+    debrief:
+      summary: Оставленный в проходе багаж это инцидент независимо от шкал.
+      refs: [sto_011_t2_storage]

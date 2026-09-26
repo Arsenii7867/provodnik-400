@@ -1,209 +1,18 @@
-"""Перебор путей сценария без часов. Состояние прохождения (шкалы, флаги, выбранные варианты,
-очередь отложенных последствий) ведут чистые функции над словарём; по ним валидатор судит о
-достижимости исходов, условных вариантах и разбросе шкал, а карта сценария берёт число путей.
-Все числа приходят из content: classes.yaml, rules.yaml и outcome_rules сценария."""
+"""Перебор путей сценария теми же функциями движка, что ведут прохождение на сервере, но без
+часов: по итогам валидатор судит о достижимости исходов, условных вариантах, разбросе шкал и
+цене истечения таймеров, а карта сценария берёт число путей."""
 
 import copy
-import math
 
-ROLE_CHAIN = ("acknowledge", "rule", "solution", "assure")
-CONTINUE = "continue"
-
-
-def round_half_away(value):
-    return int(math.copysign(math.floor(abs(value) + 0.5), value))
-
-
-def start_state(scenario, content, service_class=None):
-    start = scenario["start"]
-    return {
-        "scenario_id": scenario["id"],
-        "service_class": service_class or scenario["context"]["service_class"],
-        "node": start["node"],
-        "step_no": 0,
-        "loyalty": start["loyalty"],
-        "safety": start["safety"],
-        "flags": dict(start.get("flags") or {}),
-        "chosen": [],
-        "role_chain": [],
-        "expired_timers": 0,
-        "timers_answered": 0,
-        "delayed": [],
-        "earned": {},
-        "assessed": {},
-        "status": "active",
-        "outcome": None,
-    }
-
-
-def condition_holds(when, state):
-    if not when:
-        return True
-    flags = state["flags"]
-    for name, value in (when.get("flags_all") or {}).items():
-        if bool(flags.get(name, False)) != bool(value):
-            return False
-    if any(flags.get(name, False) for name in when.get("flags_none") or []):
-        return False
-    if "loyalty_min" in when and state["loyalty"] < when["loyalty_min"]:
-        return False
-    if "loyalty_max" in when and state["loyalty"] > when["loyalty_max"]:
-        return False
-    if "safety_min" in when and state["safety"] < when["safety_min"]:
-        return False
-    if "safety_max" in when and state["safety"] > when["safety_max"]:
-        return False
-    chosen_any = when.get("chosen_any")
-    if chosen_any and not any(option_id in state["chosen"] for option_id in chosen_any):
-        return False
-    if any(option_id in state["chosen"] for option_id in when.get("not_chosen") or []):
-        return False
-    classes = when.get("service_class")
-    if classes and state["service_class"] not in classes:
-        return False
-    return True
-
-
-def available_options(scenario, state):
-    node = scenario["nodes"][state["node"]]
-    return [option for option in node.get("options") or [] if condition_holds(option.get("when"), state)]
-
-
-def apply_effects(state, effects, content):
-    """Одна функция для варианта, ветки истечения, события и отложенного последствия: лояльность
-    масштабируется чувствительностью класса, безопасность нет, обе шкалы держатся в границах."""
-    effects = effects or {}
-    bounds = content.rules["scales"]
-    sensitivity = content.classes[state["service_class"]]["loyalty_sensitivity"]
-    loyalty = state["loyalty"] + round_half_away(effects.get("loyalty", 0) * sensitivity)
-    safety = state["safety"] + effects.get("safety", 0)
-    state["loyalty"] = max(bounds["min"], min(bounds["max"], loyalty))
-    state["safety"] = max(bounds["min"], min(bounds["max"], safety))
-
-
-def tick_delayed(state, content, force=False):
-    """Применяет созревшие отложенные последствия (все при force, на входе в концовку);
-    последствие отменяется, если к сроку выставлен любой флаг из unless_flags."""
-    applied = []
-    pending = []
-    for item in state["delayed"]:
-        if item["due_step"] > state["step_no"] and not force:
-            pending.append(item)
-            continue
-        cancelled = any(
-            state["flags"].get(name, False) == value for name, value in item["unless_flags"].items()
-        )
-        if not cancelled:
-            apply_effects(state, item["effects"], content)
-        applied.append(
-            {
-                "option_id": item["option_id"],
-                "text": item["text"],
-                "effects": item["effects"],
-                "cancelled": cancelled,
-            }
-        )
-    state["delayed"] = pending
-    return applied
-
-
-def node_assessment(node):
-    """Максимум положительных очков по каждой компетенции среди всех вариантов узла, включая
-    скрытые условием: скрытый хороший вариант это упущенная возможность."""
-    best = {}
-    for option in node.get("options") or []:
-        for code, value in (option.get("competencies") or {}).items():
-            if value > 0:
-                best[code] = max(best.get(code, 0), value)
-    return best
-
-
-def transition(scenario, content, state, source, option_id, expired):
-    node = scenario["nodes"][state["node"]]
-    step = {"node_id": state["node"], "option_id": option_id, "expired": expired}
-    step["delayed_applied"] = tick_delayed(state, content)
-    apply_effects(state, source.get("effects"), content)
-    state["flags"].update(source.get("set_flags") or {})
-    if option_id not in (None, CONTINUE):
-        state["chosen"].append(option_id)
-    verdict = (source.get("debrief") or {}).get("verdict")
-    if source.get("role_step") and verdict in ("best", "ok"):
-        state["role_chain"].append(source["role_step"])
-    for item in source.get("delayed") or []:
-        state["delayed"].append(
-            {
-                "due_step": state["step_no"] + item["steps"],
-                "effects": item.get("effects") or {},
-                "text": item.get("text", ""),
-                "unless_flags": item.get("unless_flags") or {},
-                "option_id": option_id,
-            }
-        )
-    for code, value in (source.get("competencies") or {}).items():
-        if value > 0:
-            state["earned"][code] = state["earned"].get(code, 0) + value
-    for code, value in node_assessment(node).items():
-        state["assessed"][code] = state["assessed"].get(code, 0) + value
-    if node.get("timer"):
-        state["expired_timers" if expired else "timers_answered"] += 1
-    state["step_no"] += 1
-    state["node"] = source["next"]
-    if scenario["nodes"][state["node"]]["type"] == "ending":
-        step["delayed_applied"] += tick_delayed(state, content, force=True)
-        state["status"] = "finished"
-        state["outcome"] = outcome(scenario, content, state)
-    return step
-
-
-def apply_option(scenario, content, state, option_id):
-    node = scenario["nodes"][state["node"]]
-    if node["type"] == "event":
-        if option_id != CONTINUE:
-            raise ValueError(f"узел {state['node']} принимает только «{CONTINUE}»")
-        return transition(scenario, content, state, node, CONTINUE, expired=False)
-    option = next((item for item in available_options(scenario, state) if item["id"] == option_id), None)
-    if option is None:
-        raise ValueError(f"вариант {option_id} недоступен в узле {state['node']}")
-    return transition(scenario, content, state, option, option_id, expired=False)
-
-
-def apply_expire_branch(scenario, content, state):
-    node = scenario["nodes"][state["node"]]
-    if not node.get("timer"):
-        raise ValueError(f"у узла {state['node']} нет таймера")
-    return transition(scenario, content, state, node["timer"]["on_expire"], None, expired=True)
-
-
-def outcome_thresholds(scenario, content):
-    defaults = content.rules["outcome"]
-    own = scenario.get("outcome_rules") or {}
-    exemplary = dict(defaults["exemplary_if"])
-    exemplary.update(own.get("exemplary_if") or {})
-    incident_below = own.get("incident_if_safety_below", defaults["incident_if_safety_below"])
-    return {"incident_if_safety_below": incident_below, "exemplary_if": exemplary}
-
-
-def outcome(scenario, content, state):
-    node = scenario["nodes"][state["node"]]
-    thresholds = outcome_thresholds(scenario, content)
-    forced = node.get("forced_outcome")
-    if forced == "incident" or state["safety"] < thresholds["incident_if_safety_below"]:
-        return "incident"
-    if forced == "acceptable":
-        return "acceptable"
-    rule = thresholds["exemplary_if"]
-    timers_ok = state["expired_timers"] == 0 or not rule.get("no_expired_timers", True)
-    if state["safety"] >= rule["safety_min"] and state["loyalty"] >= rule["loyalty_min"] and timers_ok:
-        return "exemplary"
-    return "acceptable"
-
-
-def role_chain_complete(chain):
-    position = 0
-    for step in chain:
-        if position < len(ROLE_CHAIN) and step == ROLE_CHAIN[position]:
-            position += 1
-    return position == len(ROLE_CHAIN)
+from app.scenarios.engine import (
+    CONTINUE,
+    OUTCOMES,
+    apply_expire_branch,
+    apply_option,
+    available_options,
+    role_chain_complete,
+    start_state,
+)
 
 
 def enumerate_paths(scenario, content, service_class=None, limit=None):
@@ -211,17 +20,17 @@ def enumerate_paths(scenario, content, service_class=None, limit=None):
     статистику; при превышении лимита путей обход прерывается с пометкой truncated."""
     limit = limit or content.rules["analysis"]["path_limit"]
     summary = new_summary(service_class or scenario["context"]["service_class"])
-    stack = [(start_state(scenario, content, service_class), [])]
+    stack = [start_state(scenario, content, service_class)]
     while stack:
-        state, trail = stack.pop()
+        state = stack.pop()
         if state["status"] == "finished":
-            record_final(summary, scenario, state, trail)
+            record_final(summary, scenario, state)
             if summary["paths"] >= limit:
                 summary["truncated"] = True
                 break
             continue
         node_id = state["node"]
-        if any(node_id == visited for visited, _, _ in trail):
+        if any(step["node_id"] == node_id for step in state["steps"]):
             summary["cycle_hit"] = True
             continue
         for option_id, expired in moves_from(scenario, state, summary):
@@ -230,8 +39,8 @@ def enumerate_paths(scenario, content, service_class=None, limit=None):
                 apply_expire_branch(scenario, content, branch)
             else:
                 apply_option(scenario, content, branch, option_id)
-            stack.append((branch, trail + [(node_id, option_id, expired)]))
-    finish_summary(summary, scenario)
+            stack.append(branch)
+    finish_summary(summary)
     return summary
 
 
@@ -276,7 +85,7 @@ def moves_from(scenario, state, summary):
     return moves
 
 
-def record_final(summary, scenario, state, trail):
+def record_final(summary, scenario, state):
     summary["paths"] += 1
     result = state["outcome"]
     summary["outcomes"][result] = summary["outcomes"].get(result, 0) + 1
@@ -295,18 +104,20 @@ def record_final(summary, scenario, state, trail):
     ending["outcomes"][result] = ending["outcomes"].get(result, 0) + 1
     widen(ending["loyalty"], state["loyalty"])
     widen(ending["safety"], state["safety"])
-    nodes = {node_id for node_id, _, _ in trail} | {state["node"]}
+    nodes = {step["node_id"] for step in state["steps"]} | {state["node"]}
     summary["reachable_nodes"] |= nodes
     summary["common_nodes"] = nodes if summary["common_nodes"] is None else summary["common_nodes"] & nodes
     if role_chain_complete(state["role_chain"]):
         summary["role_chain_paths"] += 1
     for code, value in state["earned"].items():
         summary["potential"][code] = max(summary["potential"].get(code, 0), value)
-    final = (state["loyalty"], state["safety"], result)
-    for node_id, _, expired in trail:
-        if scenario["nodes"][node_id].get("timer"):
-            timer = summary["timers"].setdefault(node_id, {"expired_finals": set(), "answered_finals": set()})
-            timer["expired_finals" if expired else "answered_finals"].add(final)
+    final = (result, state["loyalty"], state["safety"])
+    for step in state["steps"]:
+        if step["timer_seconds"]:
+            timer = summary["timers"].setdefault(
+                step["node_id"], {"expired_finals": set(), "answered_finals": set()}
+            )
+            timer["expired_finals" if step["expired"] else "answered_finals"].add(final)
 
 
 def widen(span, value):
@@ -314,11 +125,21 @@ def widen(span, value):
     span["max"] = value if span["max"] is None else max(span["max"], value)
 
 
-def finish_summary(summary, scenario):
+def finish_summary(summary):
     common = summary["common_nodes"] or set()
     if summary["reachable_nodes"]:
         summary["corridor_share"] = round(len(common) / len(summary["reachable_nodes"]), 2)
     summary["common_nodes"] = common
+
+
+def final_key(final):
+    """Порядок финалов (исход, лояльность, безопасность): сначала исход, потом сумма шкал."""
+    result, loyalty, safety = final
+    return (OUTCOMES.index(result), loyalty + safety)
+
+
+def best_final(finals):
+    return max(finals, key=final_key)
 
 
 def analyze(scenario, content, limit=None):

@@ -8,28 +8,12 @@ from pathlib import Path
 import yaml
 
 from app.scenarios import refs as refs_book
+from app.scenarios import rules as rulebook
 
 REFERENCE_FILES = ("competencies", "classes", "levels", "rules", "refs", "achievements", "challenges")
 # эти справочники появляются позже остальных; без них контент считается целым
 OPTIONAL_REFERENCES = ("achievements", "challenges")
 CLASS_FIELDS = ("title", "layout", "wait_minutes", "loyalty_sensitivity")
-# ключи rules.yaml, без которых движок и валидатор не могут считать
-RULES_KEYS = """
-    scales.min scales.max
-    outcome.incident_if_safety_below outcome.exemplary_if.safety_min outcome.exemplary_if.loyalty_min
-    outcome.exemplary_if.no_expired_timers
-    xp.base.exemplary xp.base.acceptable xp.base.incident xp.scales_divisor xp.tempo_per_timer
-    xp.role_bonus xp.repeat_factor
-    mastery.window_runs mastery.weak_below mastery.min_runs_assessed
-    bonus.expiring_notice_hours bonus.challenge_bonus_ttl_hours
-    limits.timer_seconds.min limits.timer_seconds.max limits.effects.min limits.effects.max
-    limits.competency_points.min limits.competency_points.max limits.delayed_steps.min
-    limits.delayed_steps.max limits.difficulty.min limits.difficulty.max limits.node_text_max
-    limits.option_text_max limits.option_text_max_with_timer limits.min_options
-    limits.short_timer_seconds limits.short_timer_options
-    analysis.path_limit analysis.many_paths analysis.min_outcomes analysis.min_scale_spread
-    analysis.corridor_share
-""".split()
 
 
 class LineDict(dict):
@@ -131,12 +115,7 @@ def check_references(content) -> list[str]:
     thresholds = [item.get("threshold") for item in content.levels if isinstance(item, dict)]
     if not thresholds or thresholds[0] != 0 or thresholds != sorted(set(thresholds)):
         problems.append("levels.yaml: пороги начинаются с 0 и строго растут")
-    for path in RULES_KEYS:
-        value = content.rules
-        for part in path.split("."):
-            value = value.get(part) if isinstance(value, dict) else None
-        if value is None:
-            problems.append(f"rules.yaml: нет ключа {path}")
+    problems += [f"rules.yaml: нет ключа {path}" for path in rulebook.missing_keys(content.rules)]
     problems += [f"refs.yaml: {problem}" for problem in refs_book.check_refs(content.refs)]
     return problems
 
