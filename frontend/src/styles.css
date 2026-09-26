@@ -496,6 +496,363 @@ select:focus {
   padding: 8px 10px;
 }
 
+/* прохождение */
+
+.play-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.play-head h1 {
+  margin-bottom: 8px;
+}
+
+.step-no {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--gray);
+  font-size: 0.875rem;
+  box-shadow: var(--shadow);
+}
+
+.context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  color: var(--gray);
+  font-size: 0.9375rem;
+}
+
+.context-bar strong {
+  color: var(--blue-dark);
+}
+
+.scales {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.scale-bar {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.scale-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.scale-label {
+  flex: 1;
+  font-weight: 600;
+  color: var(--blue-dark);
+}
+
+.scale-value {
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+
+.scale-delta {
+  min-width: 36px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.delta-up {
+  background: var(--ok-light);
+  color: var(--ok);
+}
+
+.delta-down {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.delta-zero {
+  background: var(--bg);
+  color: var(--gray);
+}
+
+.scale-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--blue-light);
+  overflow: hidden;
+}
+
+.scale-fill {
+  height: 100%;
+  background: var(--blue);
+  transition: width 0.4s ease;
+}
+
+.scale-safety .scale-fill {
+  background: var(--blue-dark);
+}
+
+.last-step p {
+  margin: 0 0 8px;
+  color: var(--gray);
+}
+
+.last-step-expired {
+  color: var(--danger);
+}
+
+.delayed {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--warn-light);
+  color: var(--warn);
+}
+
+.delayed-cancelled {
+  background: var(--ok-light);
+  color: var(--ok);
+}
+
+.notice-expired {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.node-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.node-text {
+  flex: 1;
+}
+
+.node-text p {
+  margin: 0 0 12px;
+  font-size: 1.0625rem;
+}
+
+.passenger {
+  margin: 0 0 12px;
+  padding: 10px 16px;
+  border-left: 3px solid var(--blue);
+  background: var(--blue-light);
+  font-style: italic;
+}
+
+.node-locked .option-button {
+  opacity: 0.5;
+}
+
+.timer-ring {
+  position: relative;
+  flex-shrink: 0;
+  width: 104px;
+  text-align: center;
+}
+
+.timer-ring svg {
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.timer-ring-track,
+.timer-ring-progress {
+  fill: none;
+  stroke-width: 8;
+}
+
+.timer-ring-track {
+  stroke: var(--blue-light);
+}
+
+.timer-ring-progress {
+  stroke: var(--blue);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.25s linear;
+}
+
+.timer-ring-urgent .timer-ring-progress {
+  stroke: var(--danger);
+}
+
+.timer-ring-expired .timer-ring-progress {
+  stroke: var(--gray);
+}
+
+.timer-ring-value {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--blue-dark);
+}
+
+.timer-ring-urgent .timer-ring-value {
+  color: var(--danger);
+}
+
+.timer-ring-caption {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: var(--gray);
+}
+
+.options {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.option-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--gray-light);
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.option-button:hover:enabled {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+
+.option-button:disabled {
+  cursor: default;
+}
+
+.button.option-button {
+  display: inline-flex;
+  width: auto;
+  background: var(--blue);
+  color: var(--white);
+}
+
+.option-role {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.role-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+}
+
+.role-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gray);
+}
+
+.role-step::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--gray-light);
+}
+
+.role-step-done {
+  color: var(--blue-dark);
+}
+
+.role-step-done::before {
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.role-step-next::before {
+  border-color: var(--blue);
+}
+
+.play-foot {
+  font-size: 0.875rem;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ending {
+  border-left: 4px solid var(--blue-dark);
+}
+
+/* разбор */
+
+.debrief-outcome {
+  font-size: 1.125rem;
+}
+
+.xp-parts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  color: var(--gray);
+}
+
+.xp-parts strong {
+  color: var(--blue-dark);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.page > .card,
+.page > .card + .card {
+  margin-bottom: 16px;
+}
+
 @media (max-width: 720px) {
   .login-grid {
     grid-template-columns: 1fr;
@@ -505,5 +862,20 @@ select:focus {
     width: 100%;
     margin-left: 0;
     justify-content: space-between;
+  }
+
+  .scales {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .node-body {
+    flex-direction: column-reverse;
+    align-items: center;
+  }
+
+  .play-head {
+    flex-direction: column;
+    gap: 8px;
   }
 }
