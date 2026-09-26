@@ -38,11 +38,11 @@ def walk(scenario, content, option_ids, service_class=None):
 
 def test_paths_and_outcomes_of_reference(result):
     own = result["own"]
-    assert own["paths"] == 288
+    assert own["paths"] == 411
     assert not own["truncated"]
     assert set(own["outcomes"]) == {"exemplary", "acceptable", "incident"}
     assert set(own["endings"]) == {"ending_station_medics", "ending_help_late", "ending_incident_pills"}
-    assert own["endings"]["ending_incident_pills"]["outcomes"] == {"incident": 4}
+    assert own["endings"]["ending_incident_pills"]["outcomes"] == {"incident": 16}
     assert own["corridor_share"] == 0.25
 
 
@@ -80,15 +80,37 @@ def test_expire_branch_leads_to_expire_only_node(scenario, content):
     assert all(option["next"] != "collapsed" for option in scenario["nodes"]["intro"]["options"])
 
 
-def test_choice_after_expiry_never_exemplary(scenario, content):
+def test_best_choices_after_expiry_stay_acceptable(scenario, content):
     state = walk(
         scenario,
         content,
-        ["expire", "chief_radio_now", "water_and_calm", "pa_medic", "brief_medic", "announce_calm"],
+        [
+            "expire",
+            "check_and_radio_chief",
+            "water_and_calm",
+            "pa_medic",
+            "brief_medic_full",
+            "announce_calm",
+        ],
     )
     assert state["status"] == "finished"
-    assert state["safety"] >= 75 and state["loyalty"] >= 70
+    assert state["expired_timers"] == 1
+    assert state["timers_answered"] == 2
+    assert (state["loyalty"], state["safety"]) == (72, 80)
     assert state["outcome"] == "acceptable"
+
+
+def test_trap_options_never_reach_exemplary(scenario, content):
+    traps = [
+        ["call_chief_stay", "ask_neighbors_for_pills", "pa_medic", "tell_about_pill", "announce_calm"],
+        ["call_chief_stay", "water_and_calm", "pa_medic", "brief_medic_full", "loud_panic"],
+        ["call_chief_stay", "leave_to_meet_chief", "pa_medic", "brief_medic", "announce_calm"],
+        ["finish_trolley_first", "water_and_calm", "radio_chief_late", "announce_calm"],
+    ]
+    for path in traps:
+        state = walk(scenario, content, path)
+        assert state["status"] == "finished"
+        assert state["outcome"] != "exemplary", path
 
 
 def test_delayed_penalty_applies_unless_returned(scenario, content):
@@ -99,7 +121,7 @@ def test_delayed_penalty_applies_unless_returned(scenario, content):
     assert left["delayed"] == []
     # бизнес-класс: каждые минус 10 лояльности превращаются в минус 13 (10 x 1.25 с округлением от нуля)
     assert returned["loyalty"] == 60
-    assert left["loyalty"] == 21
+    assert left["loyalty"] == 15
 
 
 def test_delayed_step_reports_what_was_applied(scenario, content):
@@ -113,14 +135,17 @@ def test_delayed_step_reports_what_was_applied(scenario, content):
 
 def test_role_chain_on_best_path(scenario, content):
     state = walk(
-        scenario, content, ["call_chief_stay", "water_and_calm", "pa_medic", "brief_medic", "announce_calm"]
+        scenario,
+        content,
+        ["call_chief_stay", "water_and_calm", "pa_medic", "brief_medic_full", "announce_calm"],
     )
     assert state["role_chain"] == ["acknowledge", "rule", "solution", "assure"]
     assert analysis.role_chain_complete(state["role_chain"])
+    assert (state["loyalty"], state["safety"]) == (98, 100)
     assert state["outcome"] == "exemplary"
     assert state["timers_answered"] == 3
     assert state["earned"]["medical"] == 7
-    assert state["assessed"]["medical"] == 7
+    assert state["assessed"]["medical"] == 8
 
 
 def test_role_chain_requires_order():
