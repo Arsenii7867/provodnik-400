@@ -335,11 +335,17 @@ def with_heavy_reading_load(scenario):
     scenario["nodes"]["intro"]["timer"]["seconds"] = 5
 
 
+def with_long_passenger_reply(scenario):
+    # подробности, вынесенные из текста узла в реплику пассажира, читаются те же секунды
+    scenario["nodes"]["intro"]["passenger_says"] = "Ой, как же давит, и рука немеет, и в глазах темно. " * 8
+
+
 WARNINGS = [
     (with_delayed_into_ending, "delayed_never_matures"),
     (with_delayed_never_cancelled, "delayed_never_cancelled"),
     (with_duplicate_option_text, "duplicate_option_text"),
     (with_heavy_reading_load, "timer_reading_load"),
+    (with_long_passenger_reply, "timer_reading_load"),
 ]
 
 

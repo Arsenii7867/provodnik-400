@@ -244,8 +244,8 @@ def check_expire_cost(scenario, own, checker):
 
 
 def check_reading_load(scenario, option_chars, checker):
-    """Под таймером текст узла и видимые варианты должны успевать прочитаться: норма знаков в
-    секунду лежит в rules.yaml, секунды берутся по самому короткому классу."""
+    """Под таймером текст узла, реплика пассажира и видимые варианты должны успевать прочитаться:
+    норма знаков в секунду лежит в rules.yaml, секунды берутся по самому короткому классу."""
     rate = checker.limits["timer_reading_rate"]
     for node_id, node in scenario["nodes"].items():
         timer = node.get("timer") if isinstance(node, dict) else None
@@ -255,7 +255,9 @@ def check_reading_load(scenario, option_chars, checker):
         seconds = [value for value in seconds if is_int(value) and value > 0]
         if not seconds:
             continue
-        chars = len(node.get("text") or "") + option_chars.get(node_id, 0)
+        # реплику пассажира проводник читает так же, как текст узла: вынести в неё подробности не выход
+        spoken = node.get("passenger_says") if isinstance(node.get("passenger_says"), str) else ""
+        chars = len(node.get("text") or "") + len(spoken) + option_chars.get(node_id, 0)
         load = round(chars / min(seconds), 1)
         if load > rate:
             checker.node, checker.option = node_id, None

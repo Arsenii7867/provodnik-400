@@ -25,8 +25,8 @@ start: {node: intro, loyalty: 50, safety: 60, flags: {}}
 nodes:
   intro:
     type: dialog
-    text: Пассажирка на месте 3С нажала кнопку вызова и спрашивает, где обещанный планшет.
-    passenger_says: В рекламе был планшет с фильмами. Где он?
+    text: Пассажирка с места 3С нажала кнопку вызова и ждёт обещанный планшет.
+    passenger_says: Где планшет с фильмами?
     timer:
       seconds_by_class: {first: 15, business: 20, comfort: 30, standard: 40}
       on_expire:
