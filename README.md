@@ -29,34 +29,45 @@
 
 ## Как запустить
 
-Нужны Python 3.13 и Node 22 (или новее). Сервер из папки `backend`.
-
-Windows:
+Нужны Python 3.13 и Node 24 LTS. Команды выполняются из корня репозитория.
+Сначала соберите фронт: сервер подключает его файлы при запуске.
 
 ```
+cd frontend
+npm ci
+npm run build
+cd ..
+```
+
+Скопируйте `.env.example` в `.env` в корне репозитория и при необходимости измените настройки.
+Существующий `.env` сохраняйте. Затем запустите сервер; `--env-file ../.env` явно загружает
+этот файл, а `AUTO_SEED=1` заполняет пустую базу при старте.
+
+Windows (PowerShell):
+
+```
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+cd backend
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python -m app.seed
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers
+uvicorn app.main:app --env-file ../.env --host 127.0.0.1 --port 8000 --no-proxy-headers
 ```
 
 Linux и macOS:
 
 ```
+[ -f .env ] || cp .env.example .env
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -m app.seed
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-proxy-headers
+uvicorn app.main:app --env-file ../.env --host 127.0.0.1 --port 8000 --no-proxy-headers
 ```
 
-Фронт из папки `frontend`, после чего всё приложение доступно на `http://localhost:8000`:
-
-```
-npm ci
-npm run build
-```
+Приложение доступно на `http://localhost:8000`. Сервер занимает терминал; для дальнейших
+команд откройте второй. Ручная команда `python -m app.seed` читает только переменные окружения
+процесса, `.env` сама не загружает; для обычного запуска она не нужна.
 
 Проверка: `http://localhost:8000/api/health` отвечает JSON со статусом `ok`, описание API на
 `http://localhost:8000/docs`. Демо-вход: коды `VSM-1001` и `VSM-1002` (проводники), `VSM-2001`
@@ -80,9 +91,12 @@ python -m ruff check .
 python -m app.scenarios.validator ../content
 ```
 
-Из папки `frontend`: `npm test` (логика таймера и графиков), `npx playwright test` (сквозные
-проверки в браузере: сами поднимают сервер на порту 8010 с собранным фронтом). Все проверки
-разом запускает `scripts/check.sh` из корня репозитория.
+Из папки `frontend`: `npm test` (логика таймера и графиков). Перед первой сквозной проверкой
+установите браузер: `npx playwright install chromium` (на Linux зависимости системы ставит
+`npx playwright install --with-deps chromium`). Затем `npm run build` и `npx playwright test`:
+проверки сами поднимают сервер на порту 8010 с собранным фронтом. Все проверки разом запускает
+`bash scripts/check.sh` из корня репозитория после установки зависимостей сервера, фронта и
+браузера. На Windows для скрипта нужен Git Bash.
 
 ## Где что лежит
 
@@ -120,3 +134,11 @@ python -m app.scenarios.validator ../content
 - `docs/scenarios.md`: формат YAML, валидатор, ссылки на нормы, репетиции живого изменения.
 - `docs/security.md`: данные, секреты, роли, лимиты, что не сделано.
 - `docs/roadmap.md`: ограничения и план развития.
+
+## Проверка перед сдачей
+
+[Матрица соответствия официальному ТЗ](docs/hackathon-compliance.md) и
+[отчёт аудита от 26.09.2026](docs/audit-2026-09-26.md) перечисляют проверенные функции,
+исправления и оставшиеся ограничения. Workflow `.github/workflows/check.yml` запускает
+`bash scripts/check.sh` и аудит npm на GitHub; успешность конкретного запуска смотрите во
+вкладке Actions. Наличие workflow само по себе не означает прохождение проверок.
