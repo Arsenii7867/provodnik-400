@@ -14,6 +14,11 @@ def now():
     return datetime.now(UTC) + _offset
 
 
+def iso(moment):
+    """Момент времени для ответа API: ISO с миллисекундами и смещением +00:00, None остаётся None."""
+    return moment.isoformat(timespec="milliseconds") if moment else None
+
+
 def travel(seconds):
     """Сдвигает часы для всех последующих вызовов; отрицательное значение возвращает назад."""
     global _offset, _frozen
