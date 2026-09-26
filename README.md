@@ -142,3 +142,5 @@ python -m app.scenarios.validator ../content
 исправления и оставшиеся ограничения. Workflow `.github/workflows/check.yml` запускает
 `bash scripts/check.sh` и аудит npm на GitHub; успешность конкретного запуска смотрите во
 вкладке Actions. Наличие workflow само по себе не означает прохождение проверок.
+
+[Пять полей формы сдачи с проверенными ссылками](docs/submission.md).
