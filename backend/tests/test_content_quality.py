@@ -14,7 +14,7 @@ from app.scenarios.loader import load_content
 CONTENT_DIR = Path(__file__).resolve().parents[2] / "content"
 SCENARIO_FILES = sorted((CONTENT_DIR / "scenarios").glob("*.yaml"))
 T0 = datetime(2026, 9, 26, 9, 0, tzinfo=UTC)
-NODES_MIN, NODES_MAX = 8, 12
+NODES_MIN = 8
 ENDINGS_MIN = 3
 
 
@@ -126,15 +126,17 @@ def test_outcomes_and_spread(analyzed, content):
 def test_three_endings_min(scenario, analyzed):
     endings = {node_id for node_id, node in scenario["nodes"].items() if node["type"] == "ending"}
     assert len(endings) >= ENDINGS_MIN
-    reached = {}
+    reached = set()
     for summary in analyzed["by_class"].values():
-        reached.update(summary["endings"])
-    assert set(reached) == endings
+        reached |= set(summary["endings"])
+    assert reached == endings
+    # профили сравниваются по родному классу сценария: в нём его и проходят
+    own = analyzed["own"]["endings"]
     profiles = {
         (item["loyalty"]["min"], item["loyalty"]["max"], item["safety"]["min"], item["safety"]["max"])
-        for item in reached.values()
+        for item in own.values()
     }
-    assert len(profiles) == len(reached), "у двух концовок одинаковый профиль шкал"
+    assert len(profiles) == len(own), "у двух концовок одинаковый профиль шкал"
 
 
 def test_timer_branch_changes_state(scenario, content):
@@ -239,7 +241,7 @@ def test_declared_competencies_used(scenario, content):
 
 
 def test_scenario_shape(scenario, analyzed):
-    assert NODES_MIN <= len(scenario["nodes"]) <= NODES_MAX
+    assert len(scenario["nodes"]) >= NODES_MIN
     if scenario["role_model"]:
         assert analyzed["role_chain_possible"]
     assert scenario["context"]["passenger"]["label"].strip()

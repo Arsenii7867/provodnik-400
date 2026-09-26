@@ -3,6 +3,7 @@
 цепочка ролевой модели, исходы, ошибки с кодами, детерминизм и изоляция от БД и веба."""
 
 import ast
+import copy
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -114,6 +115,32 @@ def test_choice_after_deadline_rejected(medical, content):
         medical, content, within_grace, "call_chief_stay", T0 + timedelta(seconds=20.5), GRACE
     )
     assert step["expired"] is False and within_grace["node"] == "at_the_seat"
+
+
+def test_late_choice_still_needs_valid_option(medical, content):
+    """Мусорный или скрытый id после дедлайна это отказ, а не тихое истечение: клиент не может
+    закрыть таймер чем попало."""
+    state = engine.start(medical, content, T0)
+    with pytest.raises(engine.EngineError) as caught:
+        engine.apply_choice(medical, content, state, "nonexistent", T0 + timedelta(seconds=30), GRACE)
+    assert caught.value.code == "option_unavailable"
+    assert state["node"] == "intro" and state["expired_timers"] == 0
+
+
+def test_unknown_class_rejected(medical, content):
+    with pytest.raises(engine.EngineError) as caught:
+        engine.start(medical, content, T0, "premium")
+    assert caught.value.code == "unknown_class"
+
+
+def test_expiry_points_count_in_assessed(tablet, content):
+    """Положительные очки в ветке истечения входят в оценённое: заработанное не превышает его."""
+    plain, _ = play(tablet, content, ["expire"])
+    assert "rules" not in plain["assessed"]
+    generous = copy.deepcopy(tablet)
+    generous["nodes"]["intro"]["timer"]["on_expire"]["competencies"] = {"rules": 1}
+    state, _ = play(generous, content, ["expire"])
+    assert state["earned"]["rules"] == state["assessed"]["rules"] == 1
 
 
 def test_expiry_before_deadline_is_too_early(medical, content):

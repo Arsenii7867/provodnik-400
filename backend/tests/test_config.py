@@ -53,6 +53,14 @@ def test_prod_requires_integration_key(monkeypatch):
     assert load_settings().integration_api_key == "секрет-из-окружения"
 
 
+def test_negative_grace_rejected(monkeypatch):
+    monkeypatch.setenv("TIMER_GRACE_SECONDS", "-1")
+    with pytest.raises(RuntimeError):
+        load_settings()
+    monkeypatch.setenv("TIMER_GRACE_SECONDS", "0")
+    assert load_settings().timer_grace_seconds == 0.0
+
+
 def test_env_example_matches_config():
     example = (BACKEND_DIR.parent / ".env.example").read_text(encoding="utf-8")
     declared = set(re.findall(r"^([A-Z_]+)=", example, flags=re.M))

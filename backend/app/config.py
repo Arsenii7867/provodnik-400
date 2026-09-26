@@ -40,6 +40,10 @@ def load_settings() -> Settings:
     api_key = env.get("INTEGRATION_API_KEY", "" if app_env == "prod" else defaults.integration_api_key)
     if app_env == "prod" and not api_key:
         raise RuntimeError("В prod задайте INTEGRATION_API_KEY: демо-ключ там не действует")
+    grace = float(env.get("TIMER_GRACE_SECONDS", defaults.timer_grace_seconds))
+    if grace < 0:
+        # отрицательный допуск перевернул бы окно: поздний выбор считался бы ранним истечением
+        raise RuntimeError("TIMER_GRACE_SECONDS не может быть отрицательным")
     return Settings(
         database_url=env.get("DATABASE_URL", defaults.database_url),
         content_dir=_path(env["CONTENT_DIR"]) if "CONTENT_DIR" in env else defaults.content_dir,
@@ -49,7 +53,7 @@ def load_settings() -> Settings:
         integration_api_key=api_key,
         frontend_dist=_path(env["FRONTEND_DIST"]) if "FRONTEND_DIST" in env else defaults.frontend_dist,
         token_ttl_hours=int(env.get("TOKEN_TTL_HOURS", defaults.token_ttl_hours)),
-        timer_grace_seconds=float(env.get("TIMER_GRACE_SECONDS", defaults.timer_grace_seconds)),
+        timer_grace_seconds=grace,
         login_rate_per_minute=int(env.get("LOGIN_RATE_PER_MINUTE", defaults.login_rate_per_minute)),
         demo_pin=env.get("DEMO_PIN", defaults.demo_pin),
     )

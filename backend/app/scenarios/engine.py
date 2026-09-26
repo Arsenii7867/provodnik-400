@@ -30,9 +30,12 @@ def round_half_away(value):
 
 def start_state(scenario, content, service_class=None):
     start = scenario["start"]
+    service_class = service_class or scenario["context"]["service_class"]
+    if service_class not in content.classes:
+        raise EngineError("unknown_class", f"класса «{service_class}» нет в classes.yaml")
     return {
         "scenario_id": scenario["id"],
-        "service_class": service_class or scenario["context"]["service_class"],
+        "service_class": service_class,
         "node": start["node"],
         "step_no": 0,
         "loyalty": start["loyalty"],
@@ -125,11 +128,15 @@ def apply_delayed(state, content, force=False):
 
 
 def node_assessment(node):
-    """Максимум положительных очков по каждой компетенции среди всех вариантов узла, включая
-    скрытые условием: скрытый хороший вариант это упущенная возможность."""
+    """Максимум положительных очков по каждой компетенции среди всех действий узла: вариантов,
+    включая скрытые условием (скрытый хороший вариант это упущенная возможность), и ветки
+    истечения, чтобы заработанное никогда не превышало оценённое."""
     best = {}
-    for option in node.get("options") or []:
-        for code, value in (option.get("competencies") or {}).items():
+    actions = list(node.get("options") or [])
+    if node.get("timer"):
+        actions.append(node["timer"]["on_expire"])
+    for action in actions:
+        for code, value in (action.get("competencies") or {}).items():
             if value > 0:
                 best[code] = max(best.get(code, 0), value)
     return best
@@ -196,16 +203,23 @@ def transition(scenario, content, state, source, option_id, expired):
     return step
 
 
-def apply_option(scenario, content, state, option_id):
+def find_action(scenario, state, option_id):
+    """Источник хода по id: у события это сам узел и единственный ход continue, у диалога
+    доступный вариант; иначе отказ option_unavailable."""
     node = scenario["nodes"][state["node"]]
     if node["type"] == "event":
         if option_id != CONTINUE:
             raise EngineError("option_unavailable", f"узел {state['node']} принимает только «{CONTINUE}»")
-        return transition(scenario, content, state, node, CONTINUE, expired=False)
+        return node
     option = next((item for item in available_options(scenario, state) if item["id"] == option_id), None)
     if option is None:
         raise EngineError("option_unavailable", f"вариант {option_id} недоступен в узле {state['node']}")
-    return transition(scenario, content, state, option, option_id, expired=False)
+    return option
+
+
+def apply_option(scenario, content, state, option_id):
+    source = find_action(scenario, state, option_id)
+    return transition(scenario, content, state, source, option_id, expired=False)
 
 
 def apply_expire_branch(scenario, content, state):
@@ -273,6 +287,8 @@ def apply_choice(scenario, content, state, option_id, now, grace_seconds=0.0):
     """Выбор после дедлайна с допуском не отклоняется, а трактуется как истечение: клиент мог
     нажать на последней секунде, но решает время сервера."""
     require_active(state)
+    # вариант проверяется до времени: чужой или скрытый id это отказ, а не тихое истечение
+    find_action(scenario, state, option_id)
     deadline = state["deadline_at"]
     if deadline is not None and now > deadline + timedelta(seconds=grace_seconds):
         return apply_expiry(scenario, content, state, now, grace_seconds)
