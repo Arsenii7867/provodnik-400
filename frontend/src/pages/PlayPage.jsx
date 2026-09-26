@@ -9,7 +9,6 @@ import { ROLE_STEPS, outcomeTitle, plural, roleStepTitle, signed } from '../lib/
 import { scaleDelta } from '../lib/timer.js';
 
 const EXPIRE_RETRIES = 5;
-const RETRY_MS = 400;
 const EXPIRED_NOTICE = 'Время вышло: решение принято без вас, сервер повёл сценарий по ветке истечения.';
 
 // коды, при которых наше представление о прохождении устарело и его надо перечитать
@@ -116,6 +115,7 @@ export default function PlayPage() {
   const [notice, setNotice] = useState('');
   const [serverWaits, setServerWaits] = useState(false);
   const expiringStep = useRef(null);
+  const earlyReports = useRef({ step: null, count: 0 });
   const remaining = useServerClock(run && run.status === 'active' ? run.deadline_at : null);
 
   const load = useCallback(async () => {
@@ -151,17 +151,21 @@ export default function PlayPage() {
     }
   }
 
-  async function reportExpiry(stepNo, attempt) {
+  async function reportExpiry(stepNo) {
     try {
       accept(await api.post(`/api/sessions/${runId}/expire`, { step_no: stepNo }));
     } catch (err) {
       if (STALE_CODES.has(err.code)) {
         await load().catch((inner) => setError(inner.message));
       } else if (err.code === 'too_early') {
-        // по часам сервера время ещё есть: свежий server_now поправит смещение, потом повторим
-        const fresh = await load().catch((inner) => setError(inner.message));
-        if (fresh && fresh.status === 'active' && fresh.step_no === stepNo && attempt < EXPIRE_RETRIES) {
-          setTimeout(() => reportExpiry(stepNo, attempt + 1), RETRY_MS);
+        // по часам сервера время ещё есть: свежий server_now поправит смещение, и отсчёт
+        // дойдёт до нуля ещё раз; после нескольких отказов подряд ждём сервер молча
+        const early = earlyReports.current;
+        early.count = early.step === stepNo ? early.count + 1 : 1;
+        early.step = stepNo;
+        await load().catch((inner) => setError(inner.message));
+        if (early.count < EXPIRE_RETRIES) {
+          expiringStep.current = null;
         } else {
           setServerWaits(true);
         }
@@ -171,6 +175,8 @@ export default function PlayPage() {
     }
   }
 
+  // без списка зависимостей: остаток меняется каждые 250 мс, а от повторной отправки за один
+  // и тот же ход защищает expiringStep
   useEffect(() => {
     if (!run || run.status !== 'active' || !run.deadline_at || remaining !== 0 || busy) {
       return;
@@ -179,7 +185,7 @@ export default function PlayPage() {
       return;
     }
     expiringStep.current = run.step_no;
-    reportExpiry(run.step_no, 0);
+    reportExpiry(run.step_no);
   });
 
   if (error && !run) {
