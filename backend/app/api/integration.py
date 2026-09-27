@@ -119,9 +119,16 @@ def results(db: Db, since: datetime | None = None, limit: Limit = 100, cursor: C
     }
 
 
-@router.get("/events", summary="События для LMS с курсором after_id", response_model=EventsPage)
-def events(db: Db, after_id: Cursor = 0, limit: Limit = 100):
-    return outbox.fetch(db, after_id, limit)
+@router.get("/events", summary="События для LMS: архив или неподтверждённые", response_model=EventsPage)
+def events(db: Db, after_id: Cursor = 0, limit: Limit = 100, pending_only: bool = False):
+    if pending_only and after_id:
+        raise ApiError(
+            422,
+            "validation_error",
+            "В режиме pending_only нельзя передавать after_id больше нуля: подтвердите события через ack",
+            {"errors": [{"loc": ["query", "after_id"], "msg": "pending_only требует after_id=0"}]},
+        )
+    return outbox.fetch(db, after_id, limit, pending_only)
 
 
 @router.post("/events/ack", summary="Подтвердить доставку событий", response_model=AckResponse)
