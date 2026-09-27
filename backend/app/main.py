@@ -84,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = make_engine(settings.database_url)
     app.state.session_factory = sessionmaker(app.state.engine)
     app.state.store = ContentStore(settings.content_dir)
+    app.state.frontend_mounted = False
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
@@ -133,6 +134,8 @@ def mount_frontend(app: FastAPI, dist: Path):
         page = FileResponse(index)
         page.headers["Content-Security-Policy"] = PAGE_CSP
         return page
+
+    app.state.frontend_mounted = True
 
 
 app = create_app()

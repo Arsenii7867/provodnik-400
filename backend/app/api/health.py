@@ -6,6 +6,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import __version__
+from app.frontend_readiness import frontend_ready
 from app.schemas import HealthResponse, ReadinessResponse
 
 router = APIRouter(prefix="/api", tags=["Здоровье"])
@@ -51,7 +52,7 @@ def readiness(request: Request, response: Response):
     checks = {
         "database": database_ready,
         "content": scenarios > 0 and not store.errors,
-        "frontend": (settings.frontend_dist / "index.html").is_file(),
+        "frontend": frontend_ready(settings.frontend_dist, request.app.state.frontend_mounted),
     }
     ready = all(checks.values())
     if not ready:
