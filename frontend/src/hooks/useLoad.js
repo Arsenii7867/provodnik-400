@@ -9,7 +9,10 @@ export function useLoad(load, key = '') {
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
 
-  const reload = useCallback(() => setVersion((current) => current + 1), []);
+  const reload = useCallback(() => {
+    setLoading(true);
+    setVersion((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

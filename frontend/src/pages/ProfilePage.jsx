@@ -1,5 +1,6 @@
 import { Link, useOutletContext } from 'react-router-dom';
 
+import LoadError from '../components/LoadError.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
 import {
@@ -164,7 +165,7 @@ export default function ProfilePage() {
   const filters = useLoad(() => api.get('/api/scenarios/filters'));
 
   if (profile.error) {
-    return <p className="error">{profile.error}</p>;
+    return <LoadError resource={profile} label="профиль" />;
   }
   if (!profile.data) {
     return <p className="muted">Загружаем профиль</p>;
@@ -179,9 +180,10 @@ export default function ProfilePage() {
       <div className="cards">
         <LevelCard profile={profile.data} />
         <Competencies items={profile.data.competencies} />
-        {achievements.error && <p className="error">{achievements.error}</p>}
+        <LoadError resource={achievements} label="достижения" />
         {achievements.data && <Achievements items={achievements.data} />}
-        {runs.error && <p className="error">{runs.error}</p>}
+        <LoadError resource={runs} label="история прохождений" />
+        <LoadError resource={filters} label="фильтры" />
         {runs.data && <RunsHistory runs={runs.data} classes={classes} />}
       </div>
     </>
