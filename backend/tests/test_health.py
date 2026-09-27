@@ -44,6 +44,13 @@ def test_head_health_for_liveness_probes(client):
     assert response.status_code == 200 and response.content == b""
 
 
+def test_readiness_rejects_api_only_start(client):
+    response = client.get("/api/health/ready")
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
+    assert response.json()["checks"] == {"database": True, "content": True, "frontend": False}
+
+
 def test_docs_pages_load_nothing_from_outside(client):
     """Swagger UI и ReDoc отдаются с файлов сервера: страницы не ссылаются ни на один внешний адрес."""
     for path, bundle in (("/docs", "swagger-ui-bundle.js"), ("/redoc", "redoc.standalone.js")):

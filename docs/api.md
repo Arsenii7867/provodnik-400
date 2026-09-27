@@ -74,9 +74,11 @@ curl -s -X POST http://localhost:8000/api/auth/login \
 | Метод и путь | Что делает |
 |---|---|
 | `GET /api/health` | `{status, version, scenarios, db, content_errors}`: число сценариев в каталоге, диалект базы и число ошибок контента (больше нуля значит, что сервер работает на прежней версии сценариев). `HEAD` на тот же адрес отвечает 200 для проверок живости |
+| `GET /api/health/ready` | readiness для Compose и балансировщика: проверяет запрос к базе, наличие сценариев без ошибок, подключённый frontend и доступность index со связанными локальными скриптами/стилями; возвращает `{status, checks, ...}` и HTTP 503, пока хотя бы одна зависимость не готова |
 
 ```
 curl -s http://localhost:8000/api/health
+curl -s http://localhost:8000/api/health/ready
 ```
 
 ### Авторизация

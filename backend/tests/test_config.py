@@ -44,6 +44,24 @@ def test_env_overrides_and_relative_paths(monkeypatch):
     assert settings.timer_grace_seconds == 2.5
 
 
+def test_app_env_rejects_typos_that_would_bypass_prod_guards(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "prd")
+    with pytest.raises(RuntimeError, match="APP_ENV"):
+        load_settings()
+
+
+@pytest.mark.parametrize("value", ("0", "false", "NO", "off"))
+def test_auto_seed_accepts_explicit_false_values(monkeypatch, value):
+    monkeypatch.setenv("AUTO_SEED", value)
+    assert load_settings().auto_seed is False
+
+
+def test_auto_seed_rejects_ambiguous_values(monkeypatch):
+    monkeypatch.setenv("AUTO_SEED", "disable")
+    with pytest.raises(RuntimeError, match="AUTO_SEED"):
+        load_settings()
+
+
 def test_prod_requires_integration_key(monkeypatch):
     monkeypatch.setenv("APP_ENV", "prod")
     monkeypatch.setenv("DEMO_PIN", "7391")
