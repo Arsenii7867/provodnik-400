@@ -5,6 +5,7 @@ import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
 from sqlalchemy import select
 
 from app import clock
@@ -294,3 +295,20 @@ def test_challenges_yaml_is_checked(tmp_path):
     assert challenges.check_challenges(load_content(tmp_path / "content")) == [
         "запись 1: нужны непустые строки id, title, description"
     ]
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        {"type": "no_incident_all", "params": {}},
+        {"type": "outcome_min", "params": {"outcome": "exemplary"}},
+        {"type": "role_chain_count", "params": {"count": 3}},
+    ],
+)
+def test_challenge_scenario_ids_must_be_unique(condition):
+    content = load_content(CONTENT_DIR)
+    item = content.challenges[0]
+    content.challenges = [
+        item | {"scenario_ids": ["medical_chest_pain", "medical_chest_pain"], "condition": condition}
+    ]
+    assert challenges.check_challenges(content) == ["safety_week: scenario_ids не должен содержать повторы"]

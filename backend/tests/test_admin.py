@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.main import create_app
 from app.models import ActionLog, Challenge, Employee, Notification
@@ -135,3 +135,82 @@ def test_reload_activates_new_challenge(settings, tmp_path):
         assert any(item["payload"]["challenge_id"] == "medical_week" for item in alerts)
         with app.state.session_factory() as db:
             assert db.get(Challenge, "medical_week").bonus_points == 20
+
+
+def test_reload_rejects_duplicate_challenge_scenarios_and_recovers(settings, tmp_path):
+    content_dir = tmp_path / "content"
+    shutil.copytree(CONTENT_DIR, content_dir)
+    app = create_app(dataclasses.replace(settings, content_dir=content_dir))
+    with TestClient(app) as client:
+        mentor = login_as(client, "VSM-2001", settings.demo_pin)
+        path = content_dir / "challenges.yaml"
+        original = path.read_text(encoding="utf-8")
+        extra = (
+            "\n- id: duplicate_week\n  title: Неделя первой помощи\n"
+            "  description: Образцово пройти сценарий с болью в груди.\n"
+            "  scenario_ids: [medical_chest_pain, medical_chest_pain]\n"
+            "  condition: {type: outcome_min, params: {outcome: exemplary}}\n"
+            "  bonus_points: 20\n  duration_days: 7\n"
+        )
+        with app.state.session_factory() as db:
+            notices_before = db.scalar(select(func.count()).select_from(Notification))
+        path.write_text(original + extra, encoding="utf-8")
+        report = client.post("/api/admin/scenarios/reload", headers=mentor).json()
+        assert any("scenario_ids не должен содержать повторы" in item["message"] for item in report["errors"])
+        assert "duplicate_week" not in {item["id"] for item in app.state.store.content().challenges}
+        with app.state.session_factory() as db:
+            assert db.get(Challenge, "duplicate_week") is None
+            assert db.scalar(select(func.count()).select_from(Notification)) == notices_before
+
+        # После удаления повтора тот же челлендж можно объявить обычной перезагрузкой контента.
+        fixed = extra.replace("medical_chest_pain, medical_chest_pain", "medical_chest_pain")
+        path.write_text(original + fixed, encoding="utf-8")
+        assert client.post("/api/admin/scenarios/reload", headers=mentor).json()["errors"] == []
+        with app.state.session_factory() as db:
+            assert db.get(Challenge, "duplicate_week").scenario_ids_json == ["medical_chest_pain"]
+            headcount = db.scalar(select(func.count()).select_from(Employee))
+            assert db.scalar(select(func.count()).select_from(Notification)) == notices_before + headcount
+
+
+def test_cold_start_rejects_duplicate_challenge_scenarios_and_recovers(settings, tmp_path):
+    content_dir = tmp_path / "content"
+    shutil.copytree(CONTENT_DIR, content_dir)
+    path = content_dir / "challenges.yaml"
+    original = path.read_text(encoding="utf-8")
+    path.write_text(
+        original.replace("[wheelchair_boarding]", "[wheelchair_boarding, wheelchair_boarding]"),
+        encoding="utf-8",
+    )
+    app = create_app(
+        dataclasses.replace(
+            settings, content_dir=content_dir, database_url=f"sqlite:///{tmp_path / 'cold-start.db'}"
+        )
+    )
+    with TestClient(app) as client:
+        assert any("scenario_ids не должен содержать повторы" in error for error in app.state.store.errors)
+        with app.state.session_factory() as db:
+            assert db.scalar(select(func.count()).select_from(Challenge)) == 0
+            assert (
+                db.scalar(
+                    select(func.count()).select_from(Notification).where(Notification.kind == "challenge")
+                )
+                == 0
+            )
+
+        path.write_text(original, encoding="utf-8")
+        mentor = login_as(client, "VSM-2001", settings.demo_pin)
+        assert client.post("/api/admin/scenarios/reload", headers=mentor).json()["errors"] == []
+        with app.state.session_factory() as db:
+            assert set(db.scalars(select(Challenge.id))) == {
+                "safety_week",
+                "four_steps_week",
+                "inclusion_week",
+            }
+            assert db.get(Challenge, "inclusion_week").scenario_ids_json == ["wheelchair_boarding"]
+            headcount = db.scalar(select(func.count()).select_from(Employee))
+            assert (
+                db.scalar(
+                    select(func.count()).select_from(Notification).where(Notification.kind == "challenge")
+                )
+                == 3 * headcount
+            )

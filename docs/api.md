@@ -248,7 +248,7 @@ curl -s "http://localhost:8000/api/analytics/team?brigade_id=1" -H "Authorizatio
 |---|---|
 | `GET /api/integration/employees/{code}/results` | карточка сотрудника: код, имя, роль, бригада, депо, `xp_total`, уровень, владение по компетенциям (`code`, `mastery`, `status`, `runs_assessed`), завершённые прохождения от старых к новым, достижения с датой |
 | `GET /api/integration/results` | экспорт завершённых прохождений по возрастанию `run_id`: `since` (ISO 8601, знак плюс в смещении кодировать как `%2B`), `limit` до 500, `cursor` (последний полученный `run_id`) -> `{items, next_cursor}`; `next_cursor` отдаётся только при полной странице |
-| `GET /api/integration/events` | события для LMS: `after_id`, `limit` -> `{items: [{id, event_type, payload, created_at, delivered_at}], next_after_id}` |
+| `GET /api/integration/events` | события для LMS: `after_id`, `limit`, `pending_only` (по умолчанию `false`) -> `{items: [{id, event_type, payload, created_at, delivered_at}], next_after_id}`; при `pending_only=true` только неподтверждённые, `after_id` должен быть 0, `next_after_id` всегда 0 |
 | `POST /api/integration/events/ack` | подтверждение доставки `{ids: [...]}` -> `{acked: N}` (сколько впервые подтверждены) |
 | `GET /api/integration/competencies` | справочник компетенций: код, название, описание |
 | `GET /api/integration/employees/{code}/actions` | журнал действий сотрудника с курсором `after_id`: вход, выход, старт, ход, истечение, отказ, завершение с полезной нагрузкой |
@@ -263,8 +263,25 @@ curl -s "http://localhost:8000/api/analytics/team?brigade_id=1" -H "Authorizatio
  "competencies": {"safety": {"earned": 4, "assessed": 6}, "escalation": {"earned": 2, "assessed": 4}}}
 ```
 
-События пишутся в одной транзакции с тем, что их вызвало, и остаются в таблице, пока LMS не
-подтвердит их; фоновой доставки нет, клиент читает по курсору и подтверждает пачками. Типы:
+События пишутся в одной транзакции с тем, что их вызвало, и сохраняются в таблице после
+подтверждения LMS. Для непрерывной синхронизации опрашивайте `events?pending_only=true&limit=100`
+без курсора. Сохраните событие идемпотентно по его `id` во внешней системе и только после этого
+передайте его `id` в `ack`. До подтверждения событие возвращается повторно (at-least-once).
+`next_after_id` в этом режиме всегда 0; `after_id>0` вместе с `pending_only=true` даёт 422.
+Поздно завершившаяся транзакция с меньшим id будет получена следующим опросом.
+
+Без `pending_only` прежний режим чтения архива сохранён: `ack` не исключает события из
+выборки, а `next_after_id` используется для следующей страницы. Этот курсор не гарантирует
+непрерывную синхронизацию при параллельных транзакциях PostgreSQL: порядок выдачи id может
+отличаться от порядка commit. Аналогично `/results` предназначен для исторической выборки:
+`run_id` выдаётся при старте, поэтому прохождение с меньшим id может завершиться после чтения
+следующей страницы. Для доставки новых результатов используйте неподтверждённые `run_completed`.
+
+Подтверждения общие для одного логического получателя: если HR и LMS независимы, нужен единый
+диспетчер, который подтверждает после доставки обеим системам. Раздельных подтверждений по
+получателям пока нет. `ack` устанавливает `delivered_at`, но не удаляет запись; повторное
+подтверждение уже доставленного события не увеличивает `acked`.
+Фоновой доставки и автоматической очистки нет, подтверждение выполняется пачками. Типы:
 `run_completed` (код сотрудника, сценарий и версия, исход, шкалы, очки, XP, компетенции,
 `finished_at`), `achievement_earned`, `level_up`, `challenge_completed`, `employee_created`.
 
@@ -272,6 +289,7 @@ curl -s "http://localhost:8000/api/analytics/team?brigade_id=1" -H "Authorizatio
 curl -s "http://localhost:8000/api/integration/results?since=2026-09-01T00:00:00%2B00:00&limit=100" \
   -H "X-API-Key: demo-integration-key"
 curl -s "http://localhost:8000/api/integration/events?after_id=0&limit=100" -H "X-API-Key: demo-integration-key"
+curl -s "http://localhost:8000/api/integration/events?pending_only=true&limit=100" -H "X-API-Key: demo-integration-key"
 curl -s -X POST http://localhost:8000/api/integration/events/ack \
   -H "X-API-Key: demo-integration-key" -H "Content-Type: application/json" -d '{"ids": [1, 2, 3]}'
 curl -s -X POST http://localhost:8000/api/integration/employees \

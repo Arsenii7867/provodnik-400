@@ -20,6 +20,37 @@ async function startSmoke(page) {
   await expect(page.locator('.option-button').first()).toBeVisible();
 }
 
+test('повтор из разбора сохраняет выбранный класс вагона', async ({ page, request }) => {
+  await login(page, request);
+  const token = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+  const headers = { Authorization: `Bearer ${token}` };
+  const started = await request.post('/api/sessions', {
+    headers,
+    data: { scenario_id: 'smoking_vestibule', service_class: 'business' },
+  });
+  expect(started.status()).toBe(201);
+  let run = await started.json();
+  expect(run.context.service_class).toBe('business');
+  for (let moves = 0; run.status === 'active' && moves < 20; moves += 1) {
+    const choice = await request.post(`/api/sessions/${run.run_id}/choose`, {
+      headers,
+      data: { option_id: run.node.type === 'event' ? 'continue' : run.node.options[0].id, step_no: run.step_no },
+    });
+    expect(choice.status()).toBe(200);
+    run = await choice.json();
+  }
+  expect(run.status).toBe('finished');
+  await page.goto(`/debrief/${run.run_id}`);
+  await page.getByRole('button', { name: 'Пройти снова', exact: true }).click();
+  await expect(page).toHaveURL(/\/play\/\d+$/);
+  await expect(page.locator('.context-bar strong')).toHaveText('Бизнес');
+  const repeatedId = Number(page.url().match(/\/play\/(\d+)$/)[1]);
+  expect(repeatedId).not.toBe(run.run_id);
+  const repeated = await request.get(`/api/sessions/${repeatedId}`, { headers });
+  expect(repeated.status()).toBe(200);
+  expect((await repeated.json()).context.service_class).toBe('business');
+});
+
 test('смена аккаунта в другой вкладке очищает прежний профиль и историю', async ({ page, request }) => {
   await login(page, request, 'Первый сотрудник');
   await startSmoke(page);
@@ -41,6 +72,64 @@ test('смена аккаунта в другой вкладке очищает 
     await otherTab.close();
   }
 });
+
+for (const failure of [false, true]) {
+  test(`запоздалый выход не сбрасывает новый аккаунт${failure ? ' при сбое сети' : ''}`, async ({ page, request }) => {
+    await login(page, request, 'Первый сотрудник');
+    const oldToken = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window);
+      let settled;
+      window.__logoutSettled = new Promise((resolve) => { settled = resolve; });
+      // Метка следует за чтением тела/ошибкой fetch, а не только за сетевым событием браузера.
+      const done = () => setTimeout(settled, 0);
+      window.fetch = async (...args) => {
+        if (args[0] !== '/api/auth/logout') return originalFetch(...args);
+        try {
+          const response = await originalFetch(...args);
+          const originalText = response.text.bind(response);
+          response.text = () => originalText().finally(done);
+          return response;
+        } catch (error) {
+          done();
+          throw error;
+        }
+      };
+    });
+    let releaseLogout;
+    let logoutWaiting = false;
+    const holdLogout = new Promise((resolve) => { releaseLogout = resolve; });
+    await page.route('**/api/auth/logout', async (route) => {
+      expect(route.request().headers().authorization).toBe(`Bearer ${oldToken}`);
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      logoutWaiting = true;
+      await holdLogout;
+      if (failure) return route.abort('failed');
+      return route.fulfill({ response });
+    });
+    const otherTab = await page.context().newPage();
+    try {
+      await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+      await expect.poll(() => logoutWaiting).toBe(true);
+      await login(otherTab, request, 'Второй сотрудник');
+      await expect(page.locator('.topbar-user strong')).toHaveText('Второй сотрудник');
+      const newToken = await otherTab.evaluate(() => localStorage.getItem('provodnik.token'));
+      expect(newToken).not.toBe(oldToken);
+      releaseLogout();
+      await page.evaluate(() => window.__logoutSettled);
+      expect(await page.evaluate(() => localStorage.getItem('provodnik.token'))).toBe(newToken);
+      // Следующий переход запрашивает профиль и проверяет, что новая сессия осталась рабочей.
+      await page.getByRole('link', { name: 'Профиль', exact: true }).click();
+      await expect(page).toHaveURL(/\/profile$/);
+      await expect(page.getByRole('heading', { name: 'Второй сотрудник', exact: true })).toBeVisible();
+      await expect(otherTab.locator('.topbar-user strong')).toHaveText('Второй сотрудник');
+    } finally {
+      releaseLogout();
+      await otherTab.close();
+    }
+  });
+}
 
 for (const failure of ['сети', 'формата ответа']) {
   test(`таймер повторяет истечение после временного сбоя ${failure}`, async ({ page, request }) => {
@@ -142,5 +231,124 @@ test('прогресс уровня имеет имя и значение в д�
     const value = Number(await bar.getAttribute('aria-valuenow'));
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(100);
+  }
+});
+
+for (const failure of [false, true]) {
+  test(`смена прохождения через историю изолирует запоздалый ${failure ? '503' : 'успешный ответ'}`, async ({ page, request }) => {
+    await login(page, request);
+    await startSmoke(page);
+    const oldUrl = page.url();
+    const oldPath = new URL(oldUrl).pathname.replace('/play/', '/api/sessions/');
+    await page.getByRole('link', { name: 'Сценарии', exact: true }).click();
+    await page.locator('#medical_chest_pain').getByRole('button', { name: 'Начать' }).click();
+    await expect(page.locator('.option-button').first()).toBeVisible();
+    const currentUrl = page.url();
+    const currentTitle = await page.getByRole('heading', { level: 1 }).textContent();
+    const currentChoice = await page.locator('.option-button').first().textContent();
+    await page.evaluate((path) => {
+      const originalFetch = window.fetch.bind(window);
+      let settled;
+      window.__oldRunResponseSettled = new Promise((resolve) => { settled = resolve; });
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (args[0] !== path) return response;
+        const originalText = response.text.bind(response);
+        // Allow the API parser and React state update to run after consuming the old body.
+        response.text = () => originalText().finally(() => setTimeout(settled, 0));
+        return response;
+      };
+    }, oldPath);
+    let release;
+    let waiting = false;
+    const hold = new Promise((resolve) => { release = resolve; });
+    await page.route(`**${oldPath}`, async (route) => {
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      waiting = true;
+      await hold;
+      if (failure) {
+        await route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Ошибка старого прохождения' } } });
+      } else {
+        const snapshot = await response.json();
+        // Моделируем старый замер: его принятие добавило бы пять секунд таймеру новой попытки.
+        snapshot.server_now = new Date(Date.parse(snapshot.server_now) - 5000).toISOString();
+        await route.fulfill({ json: snapshot });
+      }
+    });
+    try {
+      // Skip the catalog history entry so React reuses the PlayPage route instance.
+      await page.evaluate(() => history.go(-2));
+      await expect(page).toHaveURL(oldUrl);
+      await expect.poll(() => waiting).toBe(true);
+      await expect.soft(page.getByText('Загружаем прохождение', { exact: true })).toBeVisible();
+      await expect.soft(page.locator('.option-button')).toHaveCount(0);
+      const currentPath = new URL(currentUrl).pathname.replace('/play/', '/api/sessions/');
+      const currentResponse = page.waitForResponse((response) => new URL(response.url()).pathname === currentPath);
+      await page.evaluate(() => history.go(2));
+      await expect(page).toHaveURL(currentUrl);
+      await (await currentResponse).finished();
+      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(currentTitle);
+      const timerSeconds = async () => {
+        const text = await page.locator('.timer-ring-value').textContent();
+        const [minutes, seconds] = text.split(':').map(Number);
+        return minutes * 60 + seconds;
+      };
+      const remainingBefore = await timerSeconds();
+      release();
+      await page.evaluate(() => window.__oldRunResponseSettled);
+      // Ждём следующий видимый тик, а не проверяем ещё не перерисованный DOM.
+      await expect.poll(timerSeconds, { timeout: 3000 }).toBeLessThan(remainingBefore);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(currentTitle);
+      await expect(page.locator('.option-button').first()).toHaveText(currentChoice);
+      await expect(page.locator('.error')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Прохождение прервано', exact: true })).toHaveCount(0);
+    } finally {
+      release();
+    }
+  });
+}
+
+test('зависший ответ принятого выбора ограничен тайм-аутом, обновление восстанавливает ход без повтора', async ({ page, request }) => {
+  await login(page, request);
+  await startSmoke(page);
+  const runUrl = page.url();
+  const runId = Number(runUrl.match(/\/play\/(\d+)$/)[1]);
+  const token = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+  const headers = { Authorization: `Bearer ${token}` };
+  let accepted;
+  let attempts = 0;
+  let release;
+  const hold = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/sessions/*/choose', async (route) => {
+    attempts += 1;
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    accepted = await response.json();
+    await hold;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.locator('.option-button').first().click();
+    await expect.poll(() => accepted?.step_no).toBe(1);
+    await expect(page.locator('.option-button').first()).toBeDisabled();
+    await expect(page.locator('.error')).toContainText('Сервер не ответил вовремя', { timeout: 15_000 });
+    expect(attempts).toBe(1);
+    release();
+    await page.reload();
+    await expect(page).toHaveURL(runUrl);
+    await expect(page.locator('.step-no')).toHaveText(`Ход ${accepted.step_no + 1}`);
+    await expect(page.locator('.error')).toHaveCount(0);
+    const restored = await request.get(`/api/sessions/${runId}`, { headers });
+    expect(restored.ok()).toBe(true);
+    const state = await restored.json();
+    expect(state.step_no).toBe(accepted.step_no);
+    expect(state.node.id).toBe(accepted.node.id);
+    expect(state.loyalty).toBe(accepted.loyalty);
+    expect(state.safety).toBe(accepted.safety);
+    expect(attempts).toBe(1);
+  } finally {
+    release();
   }
 });

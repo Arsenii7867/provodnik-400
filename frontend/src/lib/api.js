@@ -1,12 +1,15 @@
 // Единственная точка обращения к серверу: токен входа, JSON и разбор единого формата ошибок
 // {"error": {"code", "message", "details"}}. Компоненты получают данные только отсюда.
-// Каждый ответ с полем server_now обновляет смещение часов, по которому считается таймер.
+// Валидный server_now обновляет часы, если более поздний запрос ещё не дал принятый замер.
 
 import { clockOffset } from './timer.js';
 
 const TOKEN_KEY = 'provodnik.token';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 let serverOffsetMs = 0;
+let requestSequence = 0;
+let clockSampleSequence = 0;
 
 class ApiError extends Error {
   constructor(status, code, message, details) {
@@ -43,30 +46,55 @@ export function getServerOffset() {
   return serverOffsetMs;
 }
 
-function rememberServerTime(data) {
-  if (data && typeof data.server_now === 'string') {
-    serverOffsetMs = clockOffset(data.server_now, Date.now());
-  }
+function rememberServerTime(data, sequence, token) {
+  if (sequence <= clockSampleSequence || token !== getToken() || typeof data?.server_now !== 'string') return;
+  const offset = clockOffset(data.server_now, Date.now());
+  if (!Number.isFinite(offset)) return;
+  // Продвигаем номер только вместе с полезным замером: ошибки и ответы без времени не мешают ему.
+  serverOffsetMs = offset;
+  clockSampleSequence = sequence;
 }
 
 async function request(method, path, body, extraHeaders = {}) {
+  const sequence = ++requestSequence;
   const headers = { Accept: 'application/json', ...extraHeaders };
   const token = getToken();
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const init = { method, headers };
+  const controller = new AbortController();
+  const init = { method, headers, signal: controller.signal };
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
   let response;
   let text;
+  let timeoutId;
+  let timedOut = false;
   try {
-    response = await fetch(path, init);
-    text = await response.text();
+    // Ограничиваем и ожидание заголовков, и чтение тела. POST здесь не повторяем:
+    // сервер мог применить действие до потери ответа, поэтому состояние нужно перечитать.
+    [response, text] = await Promise.race([
+      (async () => {
+        const received = await fetch(path, init);
+        return [received, await received.text()];
+      })(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+          reject(new Error('Request timed out'));
+        }, REQUEST_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
+    if (timedOut) {
+      throw new ApiError(0, 'network', 'Сервер не ответил вовремя. Обновите страницу, чтобы проверить, сохранено ли действие.');
+    }
     throw new ApiError(0, 'network', 'Сервер недоступен, попробуйте ещё раз через минуту');
+  } finally {
+    clearTimeout(timeoutId);
   }
   let data = null;
   try {
@@ -86,7 +114,7 @@ async function request(method, path, body, extraHeaders = {}) {
     }
     throw new ApiError(response.status, error.code || 'http_error', message, error.details);
   }
-  rememberServerTime(data);
+  rememberServerTime(data, sequence, token);
   return data;
 }
 

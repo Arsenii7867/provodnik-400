@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import clock
 from app.errors import ApiError
-from app.models import RunStep, ScenarioRun
+from app.models import Employee, RunStep, ScenarioRun
 from app.scenarios import engine
 from app.services import action_log, completion
 
@@ -59,6 +59,10 @@ def reuse_run(existing, scenario_id, service_class):
 def start_run(db, store, employee, scenario_id, service_class, idempotency_key, now):
     """Возвращает пару (прохождение, создано ли оно сейчас): повтор с тем же Idempotency-Key
     отдаёт прежнее прохождение, чтобы двойная отправка формы не открывала второе."""
+    # Сериализуем старты одного сотрудника до проверки ключа и замены активного прохождения.
+    # PostgreSQL: NO KEY UPDATE не мешает FK-проверкам при параллельном завершении/отказе.
+    # SQLite игнорирует FOR UPDATE; его UPDATE ниже уже сериализует пишущие транзакции.
+    db.scalar(select(Employee.id).where(Employee.id == employee.id).with_for_update(key_share=True))
     if idempotency_key:
         existing = find_by_key(db, employee, idempotency_key)
         if existing is not None:

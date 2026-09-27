@@ -1,6 +1,6 @@
 """Исходящие события для HR и LMS: завершение прохождения, достижение, новый уровень. Событие
-пишется в одной транзакции с тем, что его вызвало; интеграция читает события по курсору
-after_id и подтверждает ack. Фоновой доставки нет, неподтверждённые события просто остаются."""
+пишется в одной транзакции с тем, что его вызвало; интеграция читает неподтверждённые события
+и подтверждает ack, архив доступен по after_id. Фоновой доставки нет."""
 
 from sqlalchemy import select, update
 
@@ -24,12 +24,16 @@ def view(row):
     }
 
 
-def fetch(db, after_id, limit):
-    """События с id больше after_id по порядку; next_after_id это курсор для следующего запроса."""
-    rows = db.scalars(
-        select(OutboxEvent).where(OutboxEvent.id > after_id).order_by(OutboxEvent.id).limit(limit)
-    ).all()
-    return {"items": [view(row) for row in rows], "next_after_id": rows[-1].id if rows else after_id}
+def fetch(db, after_id, limit, pending_only=False):
+    """Архив по курсору или неподтверждённые события, включая поздние commit с меньшим id."""
+    query = select(OutboxEvent)
+    if pending_only:
+        query = query.where(OutboxEvent.delivered_at.is_(None))
+    else:
+        query = query.where(OutboxEvent.id > after_id)
+    rows = db.scalars(query.order_by(OutboxEvent.id).limit(limit)).all()
+    next_after_id = 0 if pending_only else (rows[-1].id if rows else after_id)
+    return {"items": [view(row) for row in rows], "next_after_id": next_after_id}
 
 
 def ack(db, ids, now):

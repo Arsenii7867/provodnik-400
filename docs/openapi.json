@@ -1274,7 +1274,7 @@
         "tags": [
           "Интеграция"
         ],
-        "summary": "События для LMS с курсором after_id",
+        "summary": "События для LMS: архив или неподтверждённые",
         "operationId": "events_api_integration_events_get",
         "parameters": [
           {
@@ -1299,6 +1299,16 @@
               "minimum": 1,
               "default": 100,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "pending_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Pending Only"
             }
           },
           {

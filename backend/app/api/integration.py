@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app import auth, clock
 from app.auth import employee_view, require_api_key
@@ -118,9 +119,16 @@ def results(db: Db, since: datetime | None = None, limit: Limit = 100, cursor: C
     }
 
 
-@router.get("/events", summary="События для LMS с курсором after_id", response_model=EventsPage)
-def events(db: Db, after_id: Cursor = 0, limit: Limit = 100):
-    return outbox.fetch(db, after_id, limit)
+@router.get("/events", summary="События для LMS: архив или неподтверждённые", response_model=EventsPage)
+def events(db: Db, after_id: Cursor = 0, limit: Limit = 100, pending_only: bool = False):
+    if pending_only and after_id:
+        raise ApiError(
+            422,
+            "validation_error",
+            "В режиме pending_only нельзя передавать after_id больше нуля: подтвердите события через ack",
+            {"errors": [{"loc": ["query", "after_id"], "msg": "pending_only требует after_id=0"}]},
+        )
+    return outbox.fetch(db, after_id, limit, pending_only)
 
 
 @router.post("/events/ack", summary="Подтвердить доставку событий", response_model=AckResponse)
@@ -190,7 +198,14 @@ def create_employee(body: CreateEmployeeRequest, request: Request, response: Res
         created_at=now,
     )
     db.add(employee)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        # Параллельный HR-запрос мог создать этот код после предварительной проверки.
+        if db.scalar(select(Employee.id).where(Employee.code == body.employee_code)) is None:
+            raise
+        raise ApiError(409, "employee_exists", "Сотрудник с таким кодом уже есть") from exc
     db.add(Profile(employee_id=employee.id, xp_total=0, updated_at=now))
     challenges.announce_active(db, employee.id, request.app.state.store.content().rules, now)
     payload = {"employee_code": employee.code, "brigade": brigade.name, "role": employee.role}
