@@ -95,3 +95,46 @@ test('a delayed 401 from an old login does not invalidate a newer token', async 
   await assert.rejects(pending, { code: 'token_expired' });
   assert.equal(getToken(), 'new');
 });
+
+for (const phase of ['headers', 'body']) {
+  test(`a stalled ${phase} request aborts without retrying a possibly accepted choice`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    setToken('current');
+    let signal;
+    let finish;
+    const stalled = new Promise((resolve) => { finish = resolve; });
+    const fetchMock = t.mock.method(globalThis, 'fetch', async (_path, init) => {
+      signal = init.signal;
+      if (phase === 'headers') return stalled;
+      return { ok: true, status: 200, text: () => stalled };
+    });
+    const pending = api.post('/api/sessions/1/choose', { option_id: 'help', step_no: 0 });
+    const rejected = assert.rejects(pending, {
+      status: 0,
+      code: 'network',
+      message: 'Сервер не ответил вовремя. Обновите страницу, чтобы проверить, сохранено ли действие.',
+    });
+    // Let fetch resolve so the body case really is waiting on response.text().
+    await Promise.resolve();
+    t.mock.timers.tick(10_000);
+    await rejected;
+    assert.equal(signal.aborted, true);
+    assert.equal(fetchMock.mock.callCount(), 1);
+    assert.equal(getToken(), 'current');
+    finish(phase === 'headers' ? new Response('{"ok":true}') : '{"ok":true}');
+    t.mock.timers.tick(30_000);
+    assert.equal(fetchMock.mock.callCount(), 1);
+  });
+}
+
+test('a completed request clears its deadline instead of aborting later', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let signal;
+  t.mock.method(globalThis, 'fetch', async (_path, init) => {
+    signal = init.signal;
+    return new Response('{"ok":true}');
+  });
+  assert.deepEqual(await api.get('/api/profile'), { ok: true });
+  t.mock.timers.tick(30_000);
+  assert.equal(signal.aborted, false);
+});

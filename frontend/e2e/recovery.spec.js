@@ -233,3 +233,46 @@ test('прогресс уровня имеет имя и значение в д�
     expect(value).toBeLessThanOrEqual(100);
   }
 });
+
+test('зависший ответ принятого выбора ограничен тайм-аутом, обновление восстанавливает ход без повтора', async ({ page, request }) => {
+  await login(page, request);
+  await startSmoke(page);
+  const runUrl = page.url();
+  const runId = Number(runUrl.match(/\/play\/(\d+)$/)[1]);
+  const token = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+  const headers = { Authorization: `Bearer ${token}` };
+  let accepted;
+  let attempts = 0;
+  let release;
+  const hold = new Promise((resolve) => { release = resolve; });
+  await page.route('**/api/sessions/*/choose', async (route) => {
+    attempts += 1;
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    accepted = await response.json();
+    await hold;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.locator('.option-button').first().click();
+    await expect.poll(() => accepted?.step_no).toBe(1);
+    await expect(page.locator('.option-button').first()).toBeDisabled();
+    await expect(page.locator('.error')).toContainText('Сервер не ответил вовремя', { timeout: 15_000 });
+    expect(attempts).toBe(1);
+    release();
+    await page.reload();
+    await expect(page).toHaveURL(runUrl);
+    await expect(page.locator('.step-no')).toHaveText(`Ход ${accepted.step_no + 1}`);
+    await expect(page.locator('.error')).toHaveCount(0);
+    const restored = await request.get(`/api/sessions/${runId}`, { headers });
+    expect(restored.ok()).toBe(true);
+    const state = await restored.json();
+    expect(state.step_no).toBe(accepted.step_no);
+    expect(state.node.id).toBe(accepted.node.id);
+    expect(state.loyalty).toBe(accepted.loyalty);
+    expect(state.safety).toBe(accepted.safety);
+    expect(attempts).toBe(1);
+  } finally {
+    release();
+  }
+});
