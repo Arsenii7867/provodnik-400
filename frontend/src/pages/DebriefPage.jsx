@@ -162,6 +162,9 @@ function StepCard({ step, titles }) {
         <span className="muted">{timingText(step)}</span>
       </div>
       <p className="step-situation">{step.node_text}</p>
+      {step.history_status === 'legacy' && (
+        <p className="muted">Исторические пояснения этого шага не сохранены.</p>
+      )}
       {step.passenger_says && <blockquote className="passenger">{step.passenger_says}</blockquote>}
       <div className="step-choice">
         <h4>{step.expired ? 'Решение не принято' : 'Ваш выбор'}</h4>
@@ -266,6 +269,19 @@ export default function DebriefPage() {
     <>
       <p className="muted">Разбор прохождения</p>
       <h1>{data.title}</h1>
+      {data.history_status === 'legacy' && (
+        <p className="notice" role="status">
+          Это старое прохождение без сохранённого исторического разбора. Показаны записанные
+          результаты, а пояснения и часть оценок восстановлены по текущему содержимому.
+          Удалённые пояснения восстановить невозможно.
+        </p>
+      )}
+      {data.history_status === 'partial' && (
+        <p className="notice" role="status">
+          Разбор сохранён частично: для ранних шагов исторические пояснения отсутствовали.
+          Эти шаги отмечены отдельно; восстановленные пояснения могут отличаться от исходных.
+        </p>
+      )}
       <section className="card debrief-summary">
         <p className="debrief-outcome">
           Исход: <strong className={`outcome outcome-${data.outcome}`}>{outcomeTitle(data.outcome)}</strong>

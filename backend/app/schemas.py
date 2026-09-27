@@ -1,6 +1,8 @@
 """Pydantic-модели тел запросов и ответов. Тела запросов только через модели, чтобы в OpenAPI
 не появлялись безымянные схемы Body_; формы ответов повторяют документацию API."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -278,6 +280,7 @@ class DelayedAppliedOut(BaseModel):
 
 
 class DebriefStep(BaseModel):
+    history_status: Literal["snapshot", "legacy"]
     step_no: int
     node_id: str
     node_text: str
@@ -342,6 +345,7 @@ class ChallengeCompletedOut(BaseModel):
 
 
 class DebriefResponse(BaseModel):
+    history_status: Literal["snapshot", "partial", "legacy"]
     run_id: int
     scenario_id: str
     title: str
