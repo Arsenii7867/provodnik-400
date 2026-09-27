@@ -18,4 +18,6 @@ data/
 
 # Отчёты e2e
 test-results/
+load-results/
+postgres-results/
 playwright-report/

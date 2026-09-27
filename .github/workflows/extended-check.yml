@@ -1,0 +1,175 @@
+name: Браузеры, PostgreSQL и нагрузка
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browsers:
+    name: E2E / ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: firefox
+            engine: firefox
+          - project: webkit
+            engine: webkit
+          - project: mobile-chromium
+            engine: chromium
+          - project: mobile-webkit
+            engine: webkit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      - name: Зависимости
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+          cd frontend
+          npm ci
+          npx playwright install --with-deps ${{ matrix.engine }}
+          npm run build
+      - name: Все E2E в выбранном браузере
+        working-directory: frontend
+        env:
+          PW_PROJECT: ${{ matrix.project }}
+        run: npx playwright test
+      - name: Результаты браузера
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: e2e-${{ matrix.project }}
+          path: frontend/test-results/
+          retention-days: 7
+
+  sqlite-load:
+    name: SQLite / нагрузка
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+      - name: Зависимости
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+      - name: Нагрузка 10 и 25 пользователей
+        env:
+          APP_ENV: test
+          DATABASE_URL: sqlite:///./data/load-test.db
+        run: |
+          mkdir -p load-results
+          cd backend
+          .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8014 --no-proxy-headers > ../load-results/server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8014/api/health > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          .venv/bin/python -m ruff check --config pyproject.toml ../scripts/load_check.py
+          .venv/bin/python ../scripts/load_check.py --users 10 --steady-read-seconds 60 --output ../load-results/sqlite-10.json
+          .venv/bin/python ../scripts/load_check.py --users 25 --steady-read-seconds 60 --output ../load-results/sqlite-25.json
+      - name: Результаты нагрузки SQLite
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sqlite-load
+          path: load-results/
+          retention-days: 7
+
+  postgres:
+    name: PostgreSQL / API, E2E, нагрузка
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: provodnik
+          # Только одноразовый контейнер CI, не пароль внешнего сервиса.
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: provodnik_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U provodnik -d provodnik_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      POSTGRES_TEST_URL: postgresql+psycopg://provodnik:ci-only@127.0.0.1:5432/provodnik_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      - name: Зависимости
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install -r backend/requirements-dev.txt
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run build
+      - name: PostgreSQL API и конкурирующие транзакции
+        working-directory: backend
+        run: .venv/bin/pytest -v compat_tests --junitxml=../postgres-results/api.xml
+      - name: Chromium E2E с PostgreSQL
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        env:
+          E2E_DATABASE_URL: ${{ env.POSTGRES_TEST_URL }}
+          PW_PROJECT: chromium
+        run: npx playwright test
+      - name: PostgreSQL нагрузка 10 и 25 пользователей
+        if: ${{ !cancelled() }}
+        env:
+          APP_ENV: test
+          DATABASE_URL: ${{ env.POSTGRES_TEST_URL }}
+        run: |
+          mkdir -p postgres-results
+          cd backend
+          .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8014 --no-proxy-headers > ../postgres-results/server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:8014/api/health > /dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = 1
+          .venv/bin/python ../scripts/load_check.py --users 10 --steady-read-seconds 60 --output ../postgres-results/postgres-10.json
+          .venv/bin/python ../scripts/load_check.py --users 25 --steady-read-seconds 60 --output ../postgres-results/postgres-25.json
+      - name: Результаты PostgreSQL
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: postgres
+          path: |
+            postgres-results/
+            frontend/test-results/
+          retention-days: 7
