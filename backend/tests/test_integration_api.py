@@ -2,18 +2,71 @@
 курсором и фильтром since, события с курсором и подтверждением, журнал действий, справочник
 компетенций, создание сотрудника с одноразовым PIN."""
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from urllib.parse import quote
 
-from sqlalchemy import select
+from fastapi.testclient import TestClient
+from sqlalchemy import event, select
 
 from app import clock
-from app.models import Employee, OutboxEvent, Profile
+from app.models import ActionLog, Employee, Notification, OutboxEvent, Profile
 from app.seed import CONDUCTORS_PER_BRIGADE
 from tests.test_api_progress import play_expired_path
 from tests.test_api_sessions import error_code, play_best_path
 
 KEY = {"X-API-Key": "demo-integration-key"}
+
+
+def check_concurrent_employee_creation(app, client):
+    body = {"employee_code": "HR-RACE", "display_name": "Проверка HR", "brigade": "М-01"}
+    headers = {"X-API-Key": app.state.settings.integration_api_key}
+    barrier = threading.Barrier(2, timeout=5)
+
+    def before_insert(conn, cursor, statement, parameters, context, executemany):
+        # Оба запроса уже прошли проверку отсутствия кода, но ещё ничего не записали.
+        if statement.startswith("INSERT INTO employees "):
+            barrier.wait()
+
+    event.listen(app.state.engine, "before_cursor_execute", before_insert)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(
+                pool.map(
+                    lambda _: client.post("/api/integration/employees", json=body, headers=headers), range(2)
+                )
+            )
+    finally:
+        event.remove(app.state.engine, "before_cursor_execute", before_insert)
+    assert sorted(response.status_code for response in responses) == [201, 409], [
+        response.text for response in responses
+    ]
+    rejected = next(response for response in responses if response.status_code == 409)
+    assert rejected.json()["error"]["code"] == "employee_exists" and "pin" not in rejected.json()
+    created = next(response.json() for response in responses if response.status_code == 201)
+    logged_in = client.post(
+        "/api/auth/login", json={"employee_code": body["employee_code"], "pin": created["pin"]}
+    )
+    assert logged_in.status_code == 200
+    with app.state.session_factory() as db:
+        employee = db.scalars(select(Employee).where(Employee.code == body["employee_code"])).one()
+        assert db.get(Profile, employee.id).xp_total == 0
+        events = db.scalars(select(OutboxEvent).where(OutboxEvent.event_type == "employee_created")).all()
+        assert [item.payload_json["employee_code"] for item in events] == [body["employee_code"]]
+        actions = db.scalars(
+            select(ActionLog).where(
+                ActionLog.employee_id == employee.id, ActionLog.action == "employee_created"
+            )
+        ).all()
+        assert len(actions) == 1
+        notices = db.scalars(select(Notification).where(Notification.employee_id == employee.id)).all()
+        assert len(notices) == 3 and len({row.dedupe_key for row in notices}) == 3
+
+
+def test_concurrent_employee_creation_returns_conflict(app):
+    with TestClient(app, raise_server_exceptions=False) as client:
+        check_concurrent_employee_creation(app, client)
 
 
 def test_key_required_401(client, login):

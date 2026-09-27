@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app import auth, clock
 from app.auth import employee_view, require_api_key
@@ -190,7 +191,14 @@ def create_employee(body: CreateEmployeeRequest, request: Request, response: Res
         created_at=now,
     )
     db.add(employee)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        # Параллельный HR-запрос мог создать этот код после предварительной проверки.
+        if db.scalar(select(Employee.id).where(Employee.code == body.employee_code)) is None:
+            raise
+        raise ApiError(409, "employee_exists", "Сотрудник с таким кодом уже есть") from exc
     db.add(Profile(employee_id=employee.id, xp_total=0, updated_at=now))
     challenges.announce_active(db, employee.id, request.app.state.store.content().rules, now)
     payload = {"employee_code": employee.code, "brigade": brigade.name, "role": employee.role}

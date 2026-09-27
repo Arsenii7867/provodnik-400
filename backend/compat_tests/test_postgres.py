@@ -35,6 +35,7 @@ from app.models import (
     ScenarioRun,
 )
 from app.seed import seed
+from tests.test_integration_api import check_concurrent_employee_creation
 
 pytestmark = pytest.mark.skipif(not os.environ.get("POSTGRES_TEST_URL"), reason="POSTGRES_TEST_URL не задан")
 MEDICAL_PATH = ["call_chief_stay", "water_and_calm", "pa_medic", "brief_medic_full", "announce_calm"]
@@ -163,6 +164,11 @@ def test_schema_indexes_and_repeat_seed(postgres):
         challenge = db.get(Challenge, "inclusion_week")
         assert challenge.scenario_ids_json == ["wheelchair_boarding"]
         assert challenge.starts_at == clock.now() and challenge.starts_at.tzinfo is UTC
+
+
+def test_concurrent_employee_creation_returns_conflict(postgres):
+    app, client, _ = postgres
+    check_concurrent_employee_creation(app, client)
 
 
 def test_concurrent_idempotent_start(postgres):
