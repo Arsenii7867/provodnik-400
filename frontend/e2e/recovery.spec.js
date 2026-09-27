@@ -42,6 +42,64 @@ test('смена аккаунта в другой вкладке очищает 
   }
 });
 
+for (const failure of [false, true]) {
+  test(`запоздалый выход не сбрасывает новый аккаунт${failure ? ' при сбое сети' : ''}`, async ({ page, request }) => {
+    await login(page, request, 'Первый сотрудник');
+    const oldToken = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window);
+      let settled;
+      window.__logoutSettled = new Promise((resolve) => { settled = resolve; });
+      // Метка следует за чтением тела/ошибкой fetch, а не только за сетевым событием браузера.
+      const done = () => setTimeout(settled, 0);
+      window.fetch = async (...args) => {
+        if (args[0] !== '/api/auth/logout') return originalFetch(...args);
+        try {
+          const response = await originalFetch(...args);
+          const originalText = response.text.bind(response);
+          response.text = () => originalText().finally(done);
+          return response;
+        } catch (error) {
+          done();
+          throw error;
+        }
+      };
+    });
+    let releaseLogout;
+    let logoutWaiting = false;
+    const holdLogout = new Promise((resolve) => { releaseLogout = resolve; });
+    await page.route('**/api/auth/logout', async (route) => {
+      expect(route.request().headers().authorization).toBe(`Bearer ${oldToken}`);
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      logoutWaiting = true;
+      await holdLogout;
+      if (failure) return route.abort('failed');
+      return route.fulfill({ response });
+    });
+    const otherTab = await page.context().newPage();
+    try {
+      await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+      await expect.poll(() => logoutWaiting).toBe(true);
+      await login(otherTab, request, 'Второй сотрудник');
+      await expect(page.locator('.topbar-user strong')).toHaveText('Второй сотрудник');
+      const newToken = await otherTab.evaluate(() => localStorage.getItem('provodnik.token'));
+      expect(newToken).not.toBe(oldToken);
+      releaseLogout();
+      await page.evaluate(() => window.__logoutSettled);
+      expect(await page.evaluate(() => localStorage.getItem('provodnik.token'))).toBe(newToken);
+      // Следующий переход запрашивает профиль и проверяет, что новая сессия осталась рабочей.
+      await page.getByRole('link', { name: 'Профиль', exact: true }).click();
+      await expect(page).toHaveURL(/\/profile$/);
+      await expect(page.getByRole('heading', { name: 'Второй сотрудник', exact: true })).toBeVisible();
+      await expect(otherTab.locator('.topbar-user strong')).toHaveText('Второй сотрудник');
+    } finally {
+      releaseLogout();
+      await otherTab.close();
+    }
+  });
+}
+
 for (const failure of ['сети', 'формата ответа']) {
   test(`таймер повторяет истечение после временного сбоя ${failure}`, async ({ page, request }) => {
     test.setTimeout(45_000);

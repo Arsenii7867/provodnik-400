@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useLoad } from '../hooks/useLoad.js';
-import { api, setToken } from '../lib/api.js';
+import { api, getToken, setToken } from '../lib/api.js';
 
 // Шапка всех экранов после входа: имя, уровень, непрочитанные уведомления, навигация.
 // Профиль и уведомления перечитываются при каждом переходе, чтобы после прохождения
@@ -13,11 +13,14 @@ export default function Layout() {
   const notifications = useLoad(() => api.get('/api/notifications'), location.pathname);
 
   async function logout() {
+    const token = getToken();
     try {
       await api.post('/api/auth/logout');
     } catch {
       // токен могли уже отозвать: выход с экрана всё равно состоится
     }
+    // Пока ответ шёл, в другой вкладке могли войти заново: этот выход относится к прежнему токену.
+    if (getToken() !== token) return;
     setToken(null);
     navigate('/login', { replace: true });
   }
