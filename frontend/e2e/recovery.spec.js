@@ -20,22 +20,25 @@ async function startSmoke(page) {
   await expect(page.locator('.option-button').first()).toBeVisible();
 }
 
-test('таймер повторяет истечение после временного сбоя сети', async ({ page, request }) => {
-  test.setTimeout(45_000);
-  await login(page, request);
-  await startSmoke(page);
-  let attempts = 0;
-  await page.route('**/api/sessions/*/expire', async (route) => {
-    attempts += 1;
-    if (attempts === 1) await route.abort('failed');
-    else await route.continue();
+for (const failure of ['сети', 'формата ответа']) {
+  test(`таймер повторяет истечение после временного сбоя ${failure}`, async ({ page, request }) => {
+    test.setTimeout(45_000);
+    await login(page, request);
+    await startSmoke(page);
+    let attempts = 0;
+    await page.route('**/api/sessions/*/expire', async (route) => {
+      attempts += 1;
+      if (attempts !== 1) return route.continue();
+      if (failure === 'сети') return route.abort('failed');
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"broken":' });
+    });
+    await page.locator('.option-button').first().click();
+    await expect(page.locator('.timer-ring')).toBeVisible();
+    await expect(page.locator('.notice-expired')).toBeVisible({ timeout: 30_000 });
+    expect(attempts).toBe(2);
+    await expect(page.locator('.error')).toHaveCount(0);
   });
-  await page.locator('.option-button').first().click();
-  await expect(page.locator('.timer-ring')).toBeVisible();
-  await expect(page.locator('.notice-expired')).toBeVisible({ timeout: 30_000 });
-  expect(attempts).toBe(2);
-  await expect(page.locator('.error')).toHaveCount(0);
-});
+}
 
 test('отложенный повтор истечения отменяется при уходе со страницы', async ({ page, request }) => {
   await login(page, request);

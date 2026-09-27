@@ -183,7 +183,7 @@ export default function PlayPage() {
           }
         }
         if (err.code !== 'too_early') setError(err.message);
-        if (err.code === 'too_early' || err.status === 0 || err.status >= 500) {
+        if (err.code === 'too_early' || err.code === 'invalid_response' || err.status === 0 || err.status >= 500) {
           retryTimer = setTimeout(reportExpiry, SERVER_WAIT_MS);
         }
       }

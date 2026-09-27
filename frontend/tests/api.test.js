@@ -20,6 +20,40 @@ afterEach(() => {
 
 const expired = () => new Response(JSON.stringify({ error: { code: 'token_expired', message: 'Войдите заново' } }), { status: 401 });
 
+test('malformed successful JSON is reported as a response error instead of null', async (t) => {
+  setToken('current');
+  for (const body of ['<html>Proxy error</html>', '{"token":', '']) {
+    t.mock.method(globalThis, 'fetch', async () => new Response(body, { status: 200 }));
+    await assert.rejects(api.get('/api/profile'), {
+      status: 200,
+      code: 'invalid_response',
+      message: 'Сервер вернул некорректный ответ, попробуйте ещё раз',
+    });
+    assert.equal(getToken(), 'current');
+  }
+});
+
+test('non-JSON server errors retain their HTTP status and fallback message', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () => new Response('<html>Bad Gateway</html>', { status: 502 }));
+  await assert.rejects(api.get('/api/profile'), {
+    status: 502,
+    code: 'http_error',
+    message: 'Сервер ответил ошибкой 502',
+  });
+});
+
+test('valid JSON and empty responses keep their existing contract', async (t) => {
+  const responses = [
+    new Response('{"ok":true}', { status: 200 }),
+    new Response('null', { status: 200 }),
+    new Response(null, { status: 204 }),
+  ];
+  t.mock.method(globalThis, 'fetch', async () => responses.shift());
+  assert.deepEqual(await api.post('/api/auth/logout'), { ok: true });
+  assert.equal(await api.get('/api/empty'), null);
+  assert.equal(await api.get('/api/no-content'), null);
+});
+
 test('a connection dropped while reading the response remains a retryable network error', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => ({
     ok: true,

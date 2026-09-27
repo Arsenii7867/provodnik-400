@@ -43,14 +43,6 @@ export function getServerOffset() {
   return serverOffsetMs;
 }
 
-function parseJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
 function rememberServerTime(data) {
   if (data && typeof data.server_now === 'string') {
     serverOffsetMs = clockOffset(data.server_now, Date.now());
@@ -76,7 +68,15 @@ async function request(method, path, body, extraHeaders = {}) {
   } catch {
     throw new ApiError(0, 'network', 'Сервер недоступен, попробуйте ещё раз через минуту');
   }
-  const data = text ? parseJson(text) : null;
+  let data = null;
+  try {
+    data = !text && (response.status === 204 || response.status === 205) ? null : JSON.parse(text);
+  } catch {
+    // HTML от прокси или оборванный JSON не должны попадать в экран как успешный null.
+    if (response.ok) {
+      throw new ApiError(response.status, 'invalid_response', 'Сервер вернул некорректный ответ, попробуйте ещё раз');
+    }
+  }
   if (!response.ok) {
     const error = (data && data.error) || {};
     const message = error.message || `Сервер ответил ошибкой ${response.status}`;
