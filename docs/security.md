@@ -89,6 +89,8 @@
   `Referrer-Policy: no-referrer`; ответы API с `Cache-Control: no-store`; страница приложения с
   `Content-Security-Policy: default-src 'self'; img-src 'self' data:; object-src 'none';
   frame-ancestors 'none'; base-uri 'self'`. Ответ с PIN нового сотрудника тоже `no-store`.
+- Необработанные ошибки `500` получают те же защитные заголовки и запрет кэширования API
+  через общий код политики; регрессия проверена в `test_error_format_is_uniform.py`.
 - CORS разрешён только источникам из `CORS_ORIGINS` (по умолчанию адреса `vite dev`).
 - Фронт собран без внешних скриптов, стилей и шрифтов; Swagger UI и ReDoc отдаются с файлов
   сервера (`fastapi-offline`), тест `test_docs_pages_load_nothing_from_outside`.

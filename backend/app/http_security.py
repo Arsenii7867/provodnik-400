@@ -4,13 +4,9 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.errors import MESSAGES_BY_STATUS, error_response
+from app.security_headers import apply_security_headers
 
 MAX_BODY_BYTES = 1_000_000
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
-}
 
 
 class SecurityMiddleware:
@@ -24,12 +20,7 @@ class SecurityMiddleware:
 
         async def secure_send(message: Message):
             if message["type"] == "http.response.start":
-                headers = MutableHeaders(scope=message)
-                for name, value in SECURITY_HEADERS.items():
-                    headers.setdefault(name, value)
-                if scope["path"].startswith("/api"):
-                    # Ответы API персональные: браузер и прокси их не кэшируют.
-                    headers["Cache-Control"] = "no-store"
+                apply_security_headers(MutableHeaders(scope=message), scope["path"])
             await send(message)
 
         async def reject():

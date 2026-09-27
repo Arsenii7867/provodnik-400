@@ -20,6 +20,7 @@ def crash_client(settings):
     app = create_app(settings)
 
     @app.get("/api/probe/crash", include_in_schema=False)
+    @app.get("/probe/crash", include_in_schema=False)
     def crash():
         raise RuntimeError("проверка обработчика")
 
@@ -53,6 +54,18 @@ def test_unexpected_error_is_500_without_traceback(crash_client):
     assert error_of(response)["code"] == "internal_error"
     assert "RuntimeError" not in response.text
     assert "Traceback" not in response.text
+
+
+@pytest.mark.parametrize("path", ["/api/probe/crash", "/probe/crash"])
+def test_unexpected_error_keeps_security_headers(crash_client, path):
+    response = crash_client.get(path)
+    assert response.status_code == 500
+    assert error_of(response)["code"] == "internal_error"
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
+    assert response.headers.get("Referrer-Policy") == "no-referrer"
+    if path.startswith("/api"):
+        assert response.headers.get("Cache-Control") == "no-store"
 
 
 def test_framework_messages_are_russian(client):

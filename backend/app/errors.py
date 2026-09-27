@@ -9,6 +9,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.security_headers import apply_security_headers
+
 logger = logging.getLogger("provodnik")
 
 # коды для HTTPException без собственного кода: их поднимает сам фреймворк (нет маршрута, метод не тот)
@@ -74,7 +76,10 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
 
 async def handle_unexpected(request: Request, exc: Exception):
     logger.exception("необработанная ошибка на %s %s", request.method, request.url.path)
-    return error_response(500, "internal_error", "Внутренняя ошибка сервера")
+    response = error_response(500, "internal_error", "Внутренняя ошибка сервера")
+    # ServerErrorMiddleware формирует этот ответ снаружи SecurityMiddleware.
+    apply_security_headers(response.headers, request.url.path)
+    return response
 
 
 def install_error_handlers(app: FastAPI):
