@@ -73,6 +73,8 @@ def check_item(item):
     if not isinstance(ids, list) or not all(is_text(scenario_id) for scenario_id in ids):
         problems.append("scenario_ids должен быть списком id сценариев, пустой список означает любой")
         ids = []
+    elif len(ids) != len(set(ids)):
+        problems.append("scenario_ids не должен содержать повторы")
     condition = item.get("condition")
     if not isinstance(condition, dict) or condition.get("type") not in CONDITIONS:
         problems.append(f"condition.type должен быть одним из {', '.join(CONDITIONS)}")
@@ -97,6 +99,9 @@ def check_item(item):
 def activate(db, content, now):
     """Создаёт окно каждому челленджу из YAML, которого ещё нет в таблице, и уведомляет всех
     сотрудников; возвращает id новых. Вызывающий фиксирует транзакцию."""
+    # При первом запуске у ContentStore ещё нет прежней проверенной версии справочников.
+    if check_challenges(content):
+        return []
     existing = set(db.scalars(select(Challenge.id)))
     employee_ids = None
     activated = []
