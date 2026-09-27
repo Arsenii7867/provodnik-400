@@ -1,50 +1,77 @@
 sequenceDiagram
   autonumber
-  participant B as Браузер (PlayPage, useServerClock)
-  participant A as FastAPI (app/api/sessions.py)
+  participant B as Браузер (PlayPage)
+  participant A as FastAPI
   participant S as session_service
   participant E as engine.py
   participant C as completion.py
+  participant R as debrief.py
   participant D as База данных
   participant H as HR-система, LMS
 
-  B->>A: POST /api/sessions {scenario_id}, заголовок Idempotency-Key
+  B->>A: POST /api/sessions {scenario_id}, Idempotency-Key
   A->>S: start_run(now из clock)
   S->>E: start(scenario, content, now)
-  E-->>S: состояние: узел, шкалы, deadline_at = now + timer.seconds
-  S->>D: INSERT scenario_runs (state_json, deadline_at), action_log
+  E-->>S: узел, шкалы, deadline_at
+  S->>D: INSERT scenario_runs и action_log, COMMIT
+  S-->>A: прохождение
   A-->>B: 201 узел, варианты, deadline_at, server_now
-  Note over B: offset = server_now минус Date.now(), кольцо таймера считает остаток до deadline_at
+  Note over B: useServerClock учитывает смещение server_now,<br/>кольцо показывает остаток до deadline_at
 
-  alt выбор до дедлайна
+  alt выбор варианта
     B->>A: POST /api/sessions/{run_id}/choose {option_id, step_no}
     A->>S: choose(now, grace)
-    S->>E: apply_choice: вариант доступен в узле, now <= deadline_at + grace
-    E-->>S: эффекты на обе шкалы, флаги, отложенные последствия, следующий узел
-  else остаток дошёл до нуля (или выбор пришёл после дедлайна)
+    S->>E: apply_choice: проверка доступности варианта и дедлайна
+    Note over S,E: Поздний выбор выполняет ветку on_expire
+  else сообщение об истечении
     B->>A: POST /api/sessions/{run_id}/expire {step_no}
     A->>S: expire(now, grace)
-    S->>E: apply_expiry: now >= deadline_at минус grace, иначе 409 too_early
-    E-->>S: ветка on_expire: свои эффекты и узел, куда иначе не попасть
+    S->>E: apply_expiry: проверка дедлайна, иначе 409 too_early
   end
-
-  S->>D: UPDATE scenario_runs WHERE step_no = прежний (иначе 409 stale_step), INSERT run_steps
-  A-->>B: 200 новое состояние, expired: true при истечении
-
+  E-->>S: эффекты, следующий узел, состояние и шаг
+  S->>R: capture_teaching: пояснения и развёрнутые refs хода
+  R-->>S: teaching_snapshot {version, data}
   opt следующий узел это концовка
-    S->>C: finish_run: исход по порогам, XP по rules.yaml
+    S->>C: finish_run: XP и значения итоговых колонок
     C->>D: profiles.xp_total += xp
-    S->>D: условный UPDATE с исходом, шкалами, score, xp
+  end
+  S->>D: Условный UPDATE scenario_runs: state_json и поля результата
+  Note over S,D: WHERE step_no = прежний AND status = active,<br/>если ход уже сделан: ROLLBACK и 409 stale_step
+  S->>D: INSERT run_steps и action_log
+  opt прохождение завершено
     S->>C: complete_run
-    C->>D: employee_competencies (владение по окну прохождений)
-    C->>D: achievements_earned по правилам achievements.yaml, notifications, outbox_events
-    C->>D: bonus_points за выполненный челлендж (expires_at), уведомление level_up
-    A-->>B: 200 status finished, outcome, xp
-    B->>A: GET /api/runs/{run_id}/debrief
-    A-->>B: разбор по шагам с цитатами норм, новые достижения, дельты компетенций
+    C->>D: владение компетенциями, достижения, бонусы челленджей
+    C->>D: уведомления, outbox_events, action_log
+    S->>D: FLUSH и REFRESH прохождения
+    S->>R: capture_response: полный DebriefResponse после наград
+    R->>D: прочитать шаги, награды, историю для уровней и компетенций
+    R-->>S: debrief_snapshot {version, data}
+    S->>S: записать снимок новым значением state_json
+  end
+  S->>D: COMMIT последнего шага, начислений и снимка
+  Note over S,D: Ошибка до фиксации откатывает транзакцию,<br/>частично сохранённого завершения нет
+  S-->>A: сохранённое прохождение
+  A-->>B: 200 новое состояние, при завершении status finished, outcome, xp
+
+  B->>A: GET /api/runs/{run_id}/debrief
+  A->>S: get_run: проверка владельца
+  S->>D: SELECT scenario_runs
+  S-->>A: прохождение владельца
+  A->>A: проверить status finished, иначе 409
+  A->>R: snapshot_data(state_json.debrief_snapshot)
+  alt поддерживаемый финальный снимок
+    R-->>A: сохранённый DebriefResponse
+    A-->>B: 200 сохранённый разбор (snapshot или partial), без ContentStore
+  else снимка нет или его версия неизвестна
+    R-->>A: снимок недоступен
+    A->>A: загрузить текущий ContentStore
+    A->>R: render: записанные результаты и доступные пояснения
+    R->>D: прочитать шаги и результаты прохождения
+    R-->>A: восстановленный разбор
+    A-->>B: 200 history_status legacy, GET ничего не записывает
   end
 
   H->>A: GET /api/integration/events?pending_only=true (X-API-Key)
   A-->>H: run_completed, achievement_earned, level_up, challenge_completed
-  Note over A,H: Один логический получатель: идемпотентная обработка по event.id;<br/>при независимых HR и LMS диспетчер подтверждает после доставки обеим системам
+  Note over A,H: Один логический получатель: обработка идемпотентна по event.id,<br/>для независимых HR и LMS диспетчер ждёт доставки обеим системам
   H->>A: POST /api/integration/events/ack {ids}

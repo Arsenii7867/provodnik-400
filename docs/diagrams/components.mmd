@@ -10,6 +10,7 @@ flowchart TB
     routers["Роутеры по доменам (app/api)<br/>auth, profile, scenarios, sessions, runs,<br/>achievements, leaderboard, notifications,<br/>challenges, analytics, admin, health"]
     integration["app/api/integration.py<br/>/api/integration, заголовок X-API-Key"]
     services["Сервисы (app/services)<br/>session_service, completion, scoring,<br/>achievements, challenges, notifications,<br/>outbox, leaderboard, analytics, action_log"]
+    history["services/debrief.py<br/>снимки пояснений каждого хода<br/>и полного разбора при завершении"]
     engine["Движок сценариев (app/scenarios)<br/>engine: чистые функции над состоянием,<br/>validator, analysis, graph"]
     store["ContentStore (app/scenarios/store.py)<br/>перечитывает YAML по mtime,<br/>сломанный файл не подменяет прежний"]
   end
@@ -23,6 +24,9 @@ flowchart TB
   apijs -- "JSON, Authorization: Bearer" --> routers
   routers --> services
   routers --> store
+  routers -- "разбор: сохранённый ответ<br/>после проверки владельца" --> history
+  services -- "сборка снимков" --> history
+  history --> db
   services --> engine
   services --> db
   services --> store
