@@ -232,7 +232,7 @@ export default function DebriefPage() {
     setStarting(true);
     setError('');
     try {
-      const run = await startSession(debrief.data.scenario_id, null, startKey);
+      const run = await startSession(debrief.data.scenario_id, debrief.data.service_class, startKey);
       navigate(`/play/${run.run_id}`);
     } catch (err) {
       setError(err.message);

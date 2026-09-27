@@ -20,6 +20,37 @@ async function startSmoke(page) {
   await expect(page.locator('.option-button').first()).toBeVisible();
 }
 
+test('повтор из разбора сохраняет выбранный класс вагона', async ({ page, request }) => {
+  await login(page, request);
+  const token = await page.evaluate(() => localStorage.getItem('provodnik.token'));
+  const headers = { Authorization: `Bearer ${token}` };
+  const started = await request.post('/api/sessions', {
+    headers,
+    data: { scenario_id: 'smoking_vestibule', service_class: 'business' },
+  });
+  expect(started.status()).toBe(201);
+  let run = await started.json();
+  expect(run.context.service_class).toBe('business');
+  for (let moves = 0; run.status === 'active' && moves < 20; moves += 1) {
+    const choice = await request.post(`/api/sessions/${run.run_id}/choose`, {
+      headers,
+      data: { option_id: run.node.type === 'event' ? 'continue' : run.node.options[0].id, step_no: run.step_no },
+    });
+    expect(choice.status()).toBe(200);
+    run = await choice.json();
+  }
+  expect(run.status).toBe('finished');
+  await page.goto(`/debrief/${run.run_id}`);
+  await page.getByRole('button', { name: 'Пройти снова', exact: true }).click();
+  await expect(page).toHaveURL(/\/play\/\d+$/);
+  await expect(page.locator('.context-bar strong')).toHaveText('Бизнес');
+  const repeatedId = Number(page.url().match(/\/play\/(\d+)$/)[1]);
+  expect(repeatedId).not.toBe(run.run_id);
+  const repeated = await request.get(`/api/sessions/${repeatedId}`, { headers });
+  expect(repeated.status()).toBe(200);
+  expect((await repeated.json()).context.service_class).toBe('business');
+});
+
 test('смена аккаунта в другой вкладке очищает прежний профиль и историю', async ({ page, request }) => {
   await login(page, request, 'Первый сотрудник');
   await startSmoke(page);
