@@ -241,7 +241,7 @@ for (const failure of [false, true]) {
     const oldUrl = page.url();
     const oldPath = new URL(oldUrl).pathname.replace('/play/', '/api/sessions/');
     await page.getByRole('link', { name: 'Сценарии', exact: true }).click();
-    await page.locator('#wheelchair_boarding').getByRole('button', { name: 'Начать' }).click();
+    await page.locator('#medical_chest_pain').getByRole('button', { name: 'Начать' }).click();
     await expect(page.locator('.option-button').first()).toBeVisible();
     const currentUrl = page.url();
     const currentTitle = await page.getByRole('heading', { level: 1 }).textContent();
@@ -270,7 +270,10 @@ for (const failure of [false, true]) {
       if (failure) {
         await route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Ошибка старого прохождения' } } });
       } else {
-        await route.fulfill({ response });
+        const snapshot = await response.json();
+        // Моделируем старый замер: его принятие добавило бы пять секунд таймеру новой попытки.
+        snapshot.server_now = new Date(Date.parse(snapshot.server_now) - 5000).toISOString();
+        await route.fulfill({ json: snapshot });
       }
     });
     try {
@@ -287,8 +290,16 @@ for (const failure of [false, true]) {
       await (await currentResponse).finished();
       await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(currentTitle);
+      const timerSeconds = async () => {
+        const text = await page.locator('.timer-ring-value').textContent();
+        const [minutes, seconds] = text.split(':').map(Number);
+        return minutes * 60 + seconds;
+      };
+      const remainingBefore = await timerSeconds();
       release();
       await page.evaluate(() => window.__oldRunResponseSettled);
+      // Ждём следующий видимый тик, а не проверяем ещё не перерисованный DOM.
+      await expect.poll(timerSeconds, { timeout: 3000 }).toBeLessThan(remainingBefore);
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(currentTitle);
       await expect(page.locator('.option-button').first()).toHaveText(currentChoice);
       await expect(page.locator('.error')).toHaveCount(0);
