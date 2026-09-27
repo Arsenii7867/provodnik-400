@@ -36,3 +36,39 @@ jobs:
       - name: Аудит npm
         working-directory: frontend
         run: npm audit --audit-level=moderate
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Настройки локального демо
+        run: cp .env.example .env
+      - name: Сборка и запуск контейнера
+        run: docker compose up --build --detach
+      - name: Ожидание готовности
+        run: |
+          for attempt in {1..90}; do
+            if curl --fail --silent http://127.0.0.1:8000/api/health/ready > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          exit 1
+      - name: Smoke-тест интерфейса и входа
+        run: |
+          curl --fail --silent http://127.0.0.1:8000/ > /dev/null
+          curl --fail --silent \
+            --header 'Content-Type: application/json' \
+            --data '{"employee_code":"VSM-1001","pin":"1234"}' \
+            http://127.0.0.1:8000/api/auth/login \
+            | python -c 'import json, sys; assert json.load(sys.stdin)["token"]'
+      - name: Журнал контейнера
+        if: always()
+        run: docker compose logs --no-color --tail=150 app
+      - name: Остановка контейнера
+        if: always()
+        run: docker compose down --volumes --remove-orphans
