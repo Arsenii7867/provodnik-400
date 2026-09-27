@@ -29,5 +29,5 @@ flowchart TB
   store --> content
   integration --> services
   integration --> db
-  hr -- "результаты, события outbox с курсором и ack,<br/>создание сотрудника" --> integration
+  hr -- "события outbox:<br/>pending_only=true + ACK;<br/>архив и результаты,<br/>создание сотрудника" --> integration
   mentor -- "POST /api/admin/scenarios/reload,<br/>GET /api/analytics/team" --> routers

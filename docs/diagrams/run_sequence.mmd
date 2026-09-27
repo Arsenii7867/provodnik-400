@@ -44,6 +44,7 @@ sequenceDiagram
     A-->>B: разбор по шагам с цитатами норм, новые достижения, дельты компетенций
   end
 
-  H->>A: GET /api/integration/events?after_id (X-API-Key)
+  H->>A: GET /api/integration/events?pending_only=true (X-API-Key)
   A-->>H: run_completed, achievement_earned, level_up, challenge_completed
+  Note over A,H: Один логический получатель: идемпотентная обработка по event.id;<br/>при независимых HR и LMS диспетчер подтверждает после доставки обеим системам
   H->>A: POST /api/integration/events/ack {ids}
