@@ -18,7 +18,7 @@ def start(
     response: Response,
     employee: CurrentEmployee,
     db: Db,
-    idempotency_key: Annotated[str | None, Header(max_length=128)] = None,
+    idempotency_key: Annotated[str | None, Header(min_length=1, max_length=128)] = None,
 ):
     store = request.app.state.store
     now = clock.now()

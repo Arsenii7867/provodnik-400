@@ -5,13 +5,13 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app import auth, clock, ratelimit
 from app.config import load_settings
 from app.errors import ApiError
 from app.main import create_app
-from app.models import Employee
+from app.models import ActionLog, Employee, ScenarioRun
 
 
 @pytest.mark.parametrize("key", ["demo-integration-key", " demo-integration-key ", "   "])
@@ -94,3 +94,43 @@ def test_idempotency_key_rejects_different_service_class(client, login):
         client.get("/api/sessions/active", headers=headers).json()["active"]["run_id"]
         == first.json()["run_id"]
     )
+
+
+@pytest.mark.parametrize("key", ["", "x" * 129], ids=["empty", "too-long"])
+def test_invalid_idempotency_key_does_not_replace_active_run(app, client, login, key):
+    headers = login()
+    body = {"scenario_id": "medical_chest_pain"}
+    first = client.post("/api/sessions", headers=headers, json=body)
+    assert first.status_code == 201
+    with app.state.session_factory() as db:
+        runs_before = db.scalar(select(func.count()).select_from(ScenarioRun))
+        actions_before = db.scalar(select(func.count()).select_from(ActionLog))
+
+    # Проверяем и повтор: пустой ключ раньше сохранялся в БД, но не участвовал в поиске повтора.
+    probe = TestClient(app, raise_server_exceptions=False)
+    responses = [
+        probe.post("/api/sessions", headers=headers | {"Idempotency-Key": key}, json=body) for _ in range(2)
+    ]
+    assert [response.status_code for response in responses] == [422, 422]
+    for response in responses:
+        error = response.json()["error"]
+        assert error["code"] == "validation_error"
+        assert error["details"]["errors"][0]["loc"] == ["header", "idempotency-key"]
+    assert (
+        client.get("/api/sessions/active", headers=headers).json()["active"]["run_id"]
+        == first.json()["run_id"]
+    )
+    with app.state.session_factory() as db:
+        assert db.scalar(select(func.count()).select_from(ScenarioRun)) == runs_before
+        assert db.scalar(select(func.count()).select_from(ActionLog)) == actions_before
+
+
+@pytest.mark.parametrize("key", ["x", "x" * 128], ids=["minimum", "maximum"])
+def test_idempotency_key_length_boundaries_replay_same_run(client, login, key):
+    headers = login() | {"Idempotency-Key": key}
+    body = {"scenario_id": "medical_chest_pain"}
+    first = client.post("/api/sessions", headers=headers, json=body)
+    replay = client.post("/api/sessions", headers=headers, json=body)
+    assert first.status_code == 201
+    assert replay.status_code == 200
+    assert replay.json()["run_id"] == first.json()["run_id"]
