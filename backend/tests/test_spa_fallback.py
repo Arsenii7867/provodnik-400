@@ -39,6 +39,13 @@ def test_unknown_api_path_is_not_index(spa_client):
     assert response.json()["error"]["code"] == "not_found"
 
 
+def test_readiness_accepts_complete_application(spa_client):
+    response = spa_client.get("/api/health/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["checks"] == {"database": True, "content": True, "frontend": True}
+
+
 def test_missing_file_is_404(spa_client):
     response = spa_client.get("/favicon.png")
     assert response.status_code == 404

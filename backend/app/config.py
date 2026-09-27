@@ -9,6 +9,9 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 # окно допуска двустороннее: при большом допуске клиент мог бы закрывать таймер задолго до срока
 MAX_GRACE_SECONDS = 5.0
+APP_ENVS = ("dev", "test", "prod")
+TRUE_VALUES = ("1", "true", "yes", "on")
+FALSE_VALUES = ("0", "false", "no", "off")
 
 
 @dataclass(frozen=True)
@@ -36,10 +39,22 @@ def split_origins(value):
     return tuple(origin.strip() for origin in value.split(",") if origin.strip())
 
 
+def parse_bool(name: str, value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in TRUE_VALUES:
+        return True
+    if normalized in FALSE_VALUES:
+        return False
+    accepted = ", ".join((*TRUE_VALUES, *FALSE_VALUES))
+    raise RuntimeError(f"{name} должно быть одним из значений: {accepted}")
+
+
 def load_settings() -> Settings:
     env = os.environ
     defaults = Settings()
     app_env = env.get("APP_ENV", defaults.app_env)
+    if app_env not in APP_ENVS:
+        raise RuntimeError(f"APP_ENV должно быть одним из значений: {', '.join(APP_ENVS)}")
     api_key = env.get("INTEGRATION_API_KEY", "" if app_env == "prod" else defaults.integration_api_key)
     if app_env == "prod" and api_key.strip() in ("", defaults.integration_api_key):
         raise RuntimeError("В prod задайте INTEGRATION_API_KEY: демо-ключ там не действует")
@@ -64,7 +79,7 @@ def load_settings() -> Settings:
     return Settings(
         database_url=env.get("DATABASE_URL", defaults.database_url),
         content_dir=resolve_path(env["CONTENT_DIR"]) if "CONTENT_DIR" in env else defaults.content_dir,
-        auto_seed=env.get("AUTO_SEED", "1") == "1",
+        auto_seed=parse_bool("AUTO_SEED", env.get("AUTO_SEED", "1")),
         app_env=app_env,
         cors_origins=split_origins(env["CORS_ORIGINS"]) if env.get("CORS_ORIGINS") else defaults.cors_origins,
         integration_api_key=api_key,

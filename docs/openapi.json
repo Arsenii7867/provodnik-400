@@ -27,6 +27,31 @@
         }
       }
     },
+    "/api/health/ready": {
+      "get": {
+        "tags": [
+          "Здоровье"
+        ],
+        "summary": "Готовность принимать пользователей",
+        "description": "Readiness для Compose и балансировщика; в отличие от живости проверяет зависимости.",
+        "operationId": "readiness_api_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "База, контент или интерфейс ещё не готовы"
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -3966,6 +3991,47 @@
           "read"
         ],
         "title": "ReadAllResponse"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "scenarios": {
+            "type": "integer",
+            "title": "Scenarios"
+          },
+          "db": {
+            "type": "string",
+            "title": "Db"
+          },
+          "content_errors": {
+            "type": "integer",
+            "title": "Content Errors"
+          },
+          "checks": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Checks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "scenarios",
+          "db",
+          "content_errors",
+          "checks"
+        ],
+        "title": "ReadinessResponse"
       },
       "RecommendationOut": {
         "properties": {

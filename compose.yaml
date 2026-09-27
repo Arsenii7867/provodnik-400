@@ -1,0 +1,53 @@
+name: provodnik-400
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: provodnik-400:local
+    init: true
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      APP_ENV: "${APP_ENV:-dev}"
+      AUTO_SEED: "${AUTO_SEED:-1}"
+      DATABASE_URL: "sqlite:////app/backend/data/provodnik.db"
+      CONTENT_DIR: "/app/content"
+      FRONTEND_DIST: "/app/frontend/dist"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+      INTEGRATION_API_KEY: "${INTEGRATION_API_KEY:-demo-integration-key}"
+      DEMO_PIN: "${DEMO_PIN:-1234}"
+      TOKEN_TTL_HOURS: "${TOKEN_TTL_HOURS:-12}"
+      TIMER_GRACE_SECONDS: "${TIMER_GRACE_SECONDS:-1.0}"
+      LOGIN_RATE_PER_MINUTE: "${LOGIN_RATE_PER_MINUTE:-10}"
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - provodnik-data:/app/backend/data
+      - type: bind
+        source: ./content
+        target: /app/content
+        read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=3).close()
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+    stop_grace_period: 15s
+
+volumes:
+  provodnik-data:

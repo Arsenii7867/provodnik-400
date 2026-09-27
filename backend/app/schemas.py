@@ -12,6 +12,10 @@ class HealthResponse(BaseModel):
     content_errors: int
 
 
+class ReadinessResponse(HealthResponse):
+    checks: dict[str, bool]
+
+
 class LoginRequest(BaseModel):
     employee_code: str = Field(min_length=1, max_length=32)
     pin: str = Field(min_length=1, max_length=32)
