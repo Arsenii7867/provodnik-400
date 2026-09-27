@@ -233,3 +233,68 @@ test('прогресс уровня имеет имя и значение в д�
     expect(value).toBeLessThanOrEqual(100);
   }
 });
+
+for (const failure of [false, true]) {
+  test(`смена прохождения через историю изолирует запоздалый ${failure ? '503' : 'успешный ответ'}`, async ({ page, request }) => {
+    await login(page, request);
+    await startSmoke(page);
+    const oldUrl = page.url();
+    const oldPath = new URL(oldUrl).pathname.replace('/play/', '/api/sessions/');
+    await page.getByRole('link', { name: 'Сценарии', exact: true }).click();
+    await page.locator('#wheelchair_boarding').getByRole('button', { name: 'Начать' }).click();
+    await expect(page.locator('.option-button').first()).toBeVisible();
+    const currentUrl = page.url();
+    const currentTitle = await page.getByRole('heading', { level: 1 }).textContent();
+    const currentChoice = await page.locator('.option-button').first().textContent();
+    await page.evaluate((path) => {
+      const originalFetch = window.fetch.bind(window);
+      let settled;
+      window.__oldRunResponseSettled = new Promise((resolve) => { settled = resolve; });
+      window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (args[0] !== path) return response;
+        const originalText = response.text.bind(response);
+        // Allow the API parser and React state update to run after consuming the old body.
+        response.text = () => originalText().finally(() => setTimeout(settled, 0));
+        return response;
+      };
+    }, oldPath);
+    let release;
+    let waiting = false;
+    const hold = new Promise((resolve) => { release = resolve; });
+    await page.route(`**${oldPath}`, async (route) => {
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      waiting = true;
+      await hold;
+      if (failure) {
+        await route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'Ошибка старого прохождения' } } });
+      } else {
+        await route.fulfill({ response });
+      }
+    });
+    try {
+      // Skip the catalog history entry so React reuses the PlayPage route instance.
+      await page.evaluate(() => history.go(-2));
+      await expect(page).toHaveURL(oldUrl);
+      await expect.poll(() => waiting).toBe(true);
+      await expect.soft(page.getByText('Загружаем прохождение', { exact: true })).toBeVisible();
+      await expect.soft(page.locator('.option-button')).toHaveCount(0);
+      const currentPath = new URL(currentUrl).pathname.replace('/play/', '/api/sessions/');
+      const currentResponse = page.waitForResponse((response) => new URL(response.url()).pathname === currentPath);
+      await page.evaluate(() => history.go(2));
+      await expect(page).toHaveURL(currentUrl);
+      await (await currentResponse).finished();
+      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(currentTitle);
+      release();
+      await page.evaluate(() => window.__oldRunResponseSettled);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(currentTitle);
+      await expect(page.locator('.option-button').first()).toHaveText(currentChoice);
+      await expect(page.locator('.error')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Прохождение прервано', exact: true })).toHaveCount(0);
+    } finally {
+      release();
+    }
+  });
+}
