@@ -313,6 +313,12 @@ def apply_expiry(scenario, content, state, now, grace_seconds=0.0):
 
 
 def finish_step(scenario, state, step, now):
+    # Живая правка YAML не меняет лимит уже начатого узла в истории прохождения.
+    # transition оставляет YAML-лимит для анализа путей без часов; здесь есть реальный дедлайн.
+    deadline = state["deadline_at"]
+    step["timer_seconds"] = (
+        round((deadline - state["node_entered_at"]).total_seconds()) if deadline is not None else None
+    )
     step["answered_in_seconds"] = round((now - state["node_entered_at"]).total_seconds(), 1)
     enter_node(scenario, state, now)
     return state, step

@@ -102,6 +102,30 @@ def login(client, code="VSM-1001"):
     return {"Authorization": f"Bearer {response.json()['token']}"}
 
 
+def test_pending_events_survive_reverse_commit_order(postgres):
+    app, client, _ = postgres
+    headers = {"X-API-Key": app.state.settings.integration_api_key}
+    path = "/api/integration/events?pending_only=true"
+    with app.state.session_factory() as slow, app.state.session_factory() as fast:
+        earlier = OutboxEvent(event_type="run_completed", payload_json={}, created_at=clock.now())
+        slow.add(earlier)
+        slow.flush()  # PostgreSQL sequence выделена, транзакция ещё не видна читателю.
+        later = OutboxEvent(event_type="run_completed", payload_json={}, created_at=clock.now())
+        fast.add(later)
+        fast.commit()
+        assert earlier.id < later.id
+        first = client.get(path, headers=headers).json()
+        assert [row["id"] for row in first["items"]] == [later.id]
+        assert first["next_after_id"] == 0
+        client.post("/api/integration/events/ack", headers=headers, json={"ids": [later.id]})
+        slow.commit()
+        second = client.get(path, headers=headers).json()
+        assert [row["id"] for row in second["items"]] == [earlier.id]
+        assert client.get(path, headers=headers).json() == second
+        client.post("/api/integration/events/ack", headers=headers, json={"ids": [earlier.id]})
+        assert client.get(path, headers=headers).json()["items"] == []
+
+
 def start(client, headers, scenario="medical_chest_pain"):
     response = client.post("/api/sessions", headers=headers, json={"scenario_id": scenario})
     assert response.status_code == 201, response.text
