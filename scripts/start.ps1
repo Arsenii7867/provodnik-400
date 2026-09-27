@@ -10,8 +10,16 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 
 function Test-DockerEngine {
-    & docker info *> $null
-    return $LASTEXITCODE -eq 0
+    # Windows PowerShell превращает stderr native-команды в terminating error при Stop.
+    # Недоступный engine здесь является ожидаемым состоянием: ниже мы запускаем Docker Desktop.
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "SilentlyContinue"
+        & docker info *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
 }
 
 Push-Location -LiteralPath $repoRoot
@@ -37,13 +45,18 @@ try {
 
     if (-not (Test-DockerEngine)) {
         if ($env:OS -eq "Windows_NT") {
-            Write-Host "Docker Engine is unavailable; asking Docker Desktop to start..."
-            & docker desktop start
-            if ($LASTEXITCODE -ne 0) {
-                Write-Warning "'docker desktop start' failed or is unsupported; waiting in case Docker Desktop is already starting."
+            Write-Host "Docker Engine is unavailable; starting Docker Desktop..."
+            $dockerDesktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+            if (Test-Path -LiteralPath $dockerDesktop -PathType Leaf) {
+                Start-Process -FilePath $dockerDesktop -WindowStyle Hidden
+            } else {
+                # Fallback for non-standard installations. Do not wait on the CLI plugin:
+                # some Docker Desktop versions keep `docker desktop start` attached indefinitely.
+                Start-Process -FilePath (Get-Command docker).Source `
+                    -ArgumentList @("desktop", "start") -WindowStyle Hidden
             }
 
-            $dockerDeadline = (Get-Date).AddSeconds(90)
+            $dockerDeadline = (Get-Date).AddSeconds(120)
             while ((Get-Date) -lt $dockerDeadline -and -not (Test-DockerEngine)) {
                 Start-Sleep -Seconds 2
             }
