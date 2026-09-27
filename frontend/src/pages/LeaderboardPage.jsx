@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 
+import LoadError from '../components/LoadError.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
 import { SCOPES, formatDateTime, plural } from '../lib/labels.js';
@@ -67,7 +68,8 @@ export default function LeaderboardPage() {
         Рейтинг это сумма лучших результатов по каждому сценарию плюс действующие бонусы челленджей; сгоревшие
         бонусы из суммы выпадают.
       </p>
-      {board.error && <p className="error">{board.error}</p>}
+      <LoadError resource={board} label="рейтинг" />
+      <LoadError resource={profile} label="профиль" />
       {data && (
         <section className="card">
           <h2 className="scope-title">{data.scope_title}</h2>

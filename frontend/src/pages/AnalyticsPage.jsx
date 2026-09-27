@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 
 import Radar from '../components/Radar.jsx';
+import LoadError from '../components/LoadError.jsx';
 import WeeklyBars from '../components/WeeklyBars.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
@@ -178,7 +179,7 @@ function PersonalAnalytics({ data, scenarioTitles }) {
 function TeamAnalytics() {
   const team = useLoad(() => api.get('/api/analytics/team'));
   if (team.error) {
-    return <p className="error">{team.error}</p>;
+    return <LoadError resource={team} label="аналитика бригады" />;
   }
   const data = team.data;
   if (!data) {
@@ -285,6 +286,7 @@ export default function AnalyticsPage() {
   return (
     <>
       <h1>Аналитика</h1>
+      <LoadError resource={profile} label="профиль" />
       {isMentor && (
         <div className="scope-switch" role="group" aria-label="Раздел аналитики">
           <button
@@ -309,7 +311,8 @@ export default function AnalyticsPage() {
         <TeamAnalytics />
       ) : (
         <>
-          {analytics.error && <p className="error">{analytics.error}</p>}
+          <LoadError resource={analytics} label="аналитика" />
+          <LoadError resource={scenarios} label="названия сценариев" />
           {!analytics.data && !analytics.error && <p className="muted">Загружаем аналитику</p>}
           {analytics.data && <PersonalAnalytics data={analytics.data} scenarioTitles={scenarioTitles} />}
         </>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import RefList from '../components/RefList.jsx';
+import LoadError from '../components/LoadError.jsx';
 import ScaleBar from '../components/ScaleBar.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api, newIdempotencyKey, startSession } from '../lib/api.js';
@@ -243,7 +244,7 @@ export default function DebriefPage() {
   if (debrief.error) {
     return (
       <>
-        <p className="error">{debrief.error}</p>
+        <LoadError resource={debrief} label="разбор" />
         <Link to="/scenarios">В каталог</Link>
       </>
     );

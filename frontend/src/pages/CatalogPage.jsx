@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
+import LoadError from '../components/LoadError.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api, newIdempotencyKey, startSession } from '../lib/api.js';
 import { outcomeTitle, plural } from '../lib/labels.js';
@@ -198,10 +199,11 @@ export default function CatalogPage() {
         </p>
       )}
       <Filters filter={filter} setFilter={setFilter} options={filterOptions} />
-      {options.error && <p className="error">{options.error}</p>}
-      {scenarios.error && <p className="error">{scenarios.error}</p>}
+      <LoadError resource={options} label="фильтры" />
+      <LoadError resource={scenarios} label="каталог" />
+      <LoadError resource={active} label="активное прохождение" />
       {error && <p className="error">{error}</p>}
-      {!scenarios.loading && items.length === 0 && <p className="muted">Под эти фильтры сценариев нет.</p>}
+      {!scenarios.loading && !scenarios.error && items.length === 0 && <p className="muted">Под эти фильтры сценариев нет.</p>}
       <div className="scenario-grid">
         {items.map((scenario) => (
           <ScenarioCard
