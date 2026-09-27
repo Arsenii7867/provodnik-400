@@ -108,6 +108,11 @@ function Ending({ run }) {
 
 export default function PlayPage() {
   const { runId } = useParams();
+  // Каждая попытка владеет своим состоянием, включая ожидающие ответы и блокировку кнопок.
+  return <PlayRun key={runId} runId={runId} />;
+}
+
+function PlayRun({ runId }) {
   const navigate = useNavigate();
   const [run, setRun] = useState(null);
   const [error, setError] = useState('');
@@ -120,14 +125,18 @@ export default function PlayPage() {
   const deadlineAt = run?.deadline_at;
   const remaining = useServerClock(run && run.status === 'active' ? run.deadline_at : null);
 
-  const load = useCallback(async () => {
-    const fresh = await api.get(`/api/sessions/${runId}`);
-    setRun(fresh);
-    return fresh;
-  }, [runId]);
+  const load = useCallback(() => api.get(`/api/sessions/${runId}`), [runId]);
 
   useEffect(() => {
-    load().catch((err) => setError(err.message));
+    let cancelled = false;
+    load()
+      .then((fresh) => {
+        if (!cancelled) setRun(fresh);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => { cancelled = true; };
   }, [load]);
 
   const accept = useCallback((next) => {
@@ -145,7 +154,7 @@ export default function PlayPage() {
     } catch (err) {
       if (STALE_CODES.has(err.code)) {
         // двойной клик или вторая вкладка ушли вперёд: показываем то, что знает сервер
-        await load().catch((inner) => setError(inner.message));
+        await load().then(setRun).catch((inner) => setError(inner.message));
       } else {
         setError(err.message);
       }
