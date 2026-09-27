@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { Fragment, useSyncExternalStore } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import Layout from './components/Layout.jsx';
@@ -15,7 +15,8 @@ import ScenarioMapPage from './pages/ScenarioMapPage.jsx';
 
 function RequireAuth({ children }) {
   const token = useSyncExternalStore(subscribeToken, getToken);
-  return token ? children : <Navigate to="/login" replace />;
+  // Новый токен сбрасывает данные прежнего сотрудника во всех открытых вкладках.
+  return token ? <Fragment key={token}>{children}</Fragment> : <Navigate to="/login" replace />;
 }
 
 export default function App() {

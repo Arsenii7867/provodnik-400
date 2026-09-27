@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-async function login(page, request) {
+async function login(page, request, displayName = 'Проверка восстановления') {
   const response = await request.post('/api/integration/employees', {
     headers: { 'X-API-Key': process.env.INTEGRATION_API_KEY || 'demo-integration-key' },
-    data: { employee_code: `REC-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, display_name: 'Проверка восстановления', brigade: 'М-01' },
+    data: { employee_code: `REC-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, display_name: displayName, brigade: 'М-01' },
   });
   expect(response.status()).toBe(201);
   const employee = await response.json();
@@ -19,6 +19,28 @@ async function startSmoke(page) {
   await page.locator('#smoking_vestibule').getByRole('button', { name: 'Начать' }).click();
   await expect(page.locator('.option-button').first()).toBeVisible();
 }
+
+test('смена аккаунта в другой вкладке очищает прежний профиль и историю', async ({ page, request }) => {
+  await login(page, request, 'Первый сотрудник');
+  await startSmoke(page);
+  await page.goto('/profile');
+  await expect(page.locator('.topbar-user strong')).toHaveText('Первый сотрудник');
+  await expect(page.getByRole('heading', { name: 'Первый сотрудник', exact: true })).toBeVisible();
+  await expect(page.locator('.runs-table tbody tr')).toHaveCount(1);
+
+  const otherTab = await page.context().newPage();
+  try {
+    await login(otherTab, request, 'Второй сотрудник');
+    await expect(page).toHaveURL(/\/profile$/);
+    await expect(page.locator('.topbar-user strong')).toHaveText('Второй сотрудник');
+    await expect(page.getByRole('heading', { name: 'Второй сотрудник', exact: true })).toBeVisible();
+    await expect(page.getByText('Прохождений пока нет.', { exact: true })).toBeVisible();
+    await expect(page.locator('.runs-table')).toHaveCount(0);
+    await expect(page.getByText('Первый сотрудник', { exact: true })).toHaveCount(0);
+  } finally {
+    await otherTab.close();
+  }
+});
 
 for (const failure of ['сети', 'формата ответа']) {
   test(`таймер повторяет истечение после временного сбоя ${failure}`, async ({ page, request }) => {
