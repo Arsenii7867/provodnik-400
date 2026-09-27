@@ -7,13 +7,14 @@
 
 import os
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, inspect, select, text
+from sqlalchemy import create_engine, event, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.schema import CreateSchema, DropSchema
 
@@ -63,7 +64,10 @@ def postgres(tmp_path):
             db.execute(CreateSchema(schema))
         created = True
         scoped = url.update_query_dict(
-            {"options": f"-csearch_path={schema} -cstatement_timeout=15000 -clock_timeout=10000"}
+            {
+                "options": f"-csearch_path={schema} -capplication_name={schema} "
+                "-cstatement_timeout=15000 -clock_timeout=10000"
+            }
         )
         settings = Settings(
             database_url=scoped.render_as_string(hide_password=False),
@@ -184,22 +188,65 @@ def test_concurrent_idempotent_start(postgres):
 
 
 def test_concurrent_distinct_starts_keep_one_active_run(postgres):
-    app, client, _ = postgres
+    app, client, schema = postgres
     headers = login(client)
-    responses = parallel_requests(
-        lambda index: client.post(
-            "/api/sessions",
-            headers=headers | {"Idempotency-Key": f"postgres-distinct-{index}"},
-            json={"scenario_id": "medical_chest_pain"},
-        )
-    )
+    empty_updates = threading.Semaphore(0)
+    release = threading.Event()
+
+    def pause_before_insert(conn, cursor, statement, parameters, context, executemany):
+        if statement.startswith("UPDATE scenario_runs SET status=") and cursor.rowcount == 0:
+            empty_updates.release()
+            assert release.wait(15), "Координатор не освободил старт после пустого UPDATE"
+
+    # Синхронизация HTTP-запросов не гарантирует пересечения транзакций: задерживаем INSERT,
+    # пока второй старт тоже не увидит пустой UPDATE либо не заблокируется за первым стартом.
+    event.listen(app.state.engine, "after_cursor_execute", pause_before_insert)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(
+                    client.post,
+                    "/api/sessions",
+                    headers=headers | {"Idempotency-Key": f"postgres-distinct-{index}"},
+                    json={"scenario_id": "medical_chest_pain"},
+                )
+                for index in range(2)
+            ]
+            try:
+                assert empty_updates.acquire(timeout=10), "Ни один старт не дошёл до пустого UPDATE"
+                overlap = "оба старта выполнили пустой UPDATE до INSERT"
+                with app.state.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as monitor:
+                    assert monitor.scalar(text("SHOW transaction_isolation")) == "read committed"
+                    deadline = time.monotonic() + 5
+                    while not empty_updates.acquire(timeout=0.02):
+                        # AUTOCOMMIT обновляет снимок pg_stat_activity при каждом чтении.
+                        serialized = monitor.scalar(
+                            text(
+                                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity waiting "
+                                "JOIN pg_stat_activity blocking "
+                                "ON blocking.pid = ANY(pg_blocking_pids(waiting.pid)) "
+                                "WHERE waiting.application_name = :name "
+                                "AND blocking.application_name = :name "
+                                "AND waiting.wait_event_type = 'Lock')"
+                            ),
+                            {"name": schema},
+                        )
+                        if serialized:
+                            overlap = "второй старт ждёт блокировку первого"
+                            break
+                        assert time.monotonic() < deadline, "Не наблюдается пересечение двух стартов"
+            finally:
+                release.set()
+            responses = [future.result(timeout=20) for future in futures]
+    finally:
+        event.remove(app.state.engine, "after_cursor_execute", pause_before_insert)
     assert [response.status_code for response in responses] == [201, 201], [
         response.text for response in responses
     ]
     with app.state.session_factory() as db:
         runs = db.scalars(select(ScenarioRun)).all()
         assert len(runs) == 2
-        assert sorted(run.status for run in runs) == ["abandoned", "active"]
+        assert sorted(run.status for run in runs) == ["abandoned", "active"], overlap
         active_id = next(run.id for run in runs if run.status == "active")
     assert client.get("/api/sessions/active", headers=headers).json()["active"]["run_id"] == active_id
 
