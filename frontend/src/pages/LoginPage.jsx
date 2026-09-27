@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import LoadError from '../components/LoadError.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api, setToken } from '../lib/api.js';
 import { ROLE_TITLES } from '../lib/labels.js';
@@ -50,7 +51,7 @@ export default function LoginPage() {
         <div>
           <h2>Демо-профили</h2>
           <p className="muted">Нажмите на карточку, код подставится в форму. Данные синтетические.</p>
-          {demo.error && <p className="error">{demo.error}</p>}
+          <LoadError resource={demo} label="демо-профили" />
           <div className="demo-cards">
             {(demo.data || []).map((account) => (
               <button
@@ -107,7 +108,7 @@ export default function LoginPage() {
             Сервер {health.data.version}, сценариев: {health.data.scenarios}
           </span>
         )}
-        {health.error && <span className="error">{health.error}</span>}
+        <LoadError resource={health} label="состояние сервера" />
       </footer>
     </main>
   );

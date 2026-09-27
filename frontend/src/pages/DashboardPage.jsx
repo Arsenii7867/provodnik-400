@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 
+import LoadError from '../components/LoadError.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
 import { CHALLENGE_STATUSES, NOTIFICATION_KINDS, formatDate, formatDateTime, outcomeTitle, plural } from '../lib/labels.js';
@@ -77,7 +78,7 @@ function RecommendedCard({ analytics }) {
   return (
     <section className="card">
       <h2>Рекомендовано</h2>
-      {analytics.error && <p className="error">{analytics.error}</p>}
+      <LoadError resource={analytics} label="рекомендации" />
       {analytics.data && items.length === 0 && <p className="muted">Рекомендаций пока нет.</p>}
       <ul className="recommendations">
         {items.map((item) => (
@@ -99,7 +100,7 @@ function ChallengesCard({ challenges }) {
   return (
     <section className="card">
       <h2>Челленджи</h2>
-      {challenges.error && <p className="error">{challenges.error}</p>}
+      <LoadError resource={challenges} label="челленджи" />
       {challenges.data && items.length === 0 && <p className="muted">Открытых челленджей нет.</p>}
       <ul className="challenges">
         {items.map((item) => {
@@ -133,7 +134,7 @@ function BrigadeCard() {
   return (
     <section className="card card-accent">
       <h2>Моя бригада</h2>
-      {team.error && <p className="error">{team.error}</p>}
+      <LoadError resource={team} label="аналитика бригады" />
       {!data && !team.error && <p className="muted">Загружаем аналитику бригады</p>}
       {data && (
         <>
@@ -206,9 +207,9 @@ function Notifications({ notifications }) {
           </button>
         )}
       </div>
-      {notifications.error && <p className="error">{notifications.error}</p>}
+      <LoadError resource={notifications} label="уведомления" />
       {error && <p className="error">{error}</p>}
-      {items.length === 0 && <p className="muted">Уведомлений пока нет.</p>}
+      {!notifications.loading && !notifications.error && items.length === 0 && <p className="muted">Уведомлений пока нет.</p>}
       <ul className="notifications">
         {items.map((item) => (
           <li key={item.id} className={item.read_at ? 'notification' : 'notification notification-unread'}>
@@ -235,7 +236,7 @@ export default function DashboardPage() {
   const analytics = useLoad(() => api.get('/api/analytics/me'));
 
   if (profile.error) {
-    return <p className="error">{profile.error}</p>;
+    return <LoadError resource={profile} label="профиль" />;
   }
   if (!profile.data) {
     return <p className="muted">Загружаем профиль</p>;
@@ -245,6 +246,7 @@ export default function DashboardPage() {
     return (
       <>
         <h1>Бригада и уведомления</h1>
+        <LoadError resource={active} label="активное прохождение" />
         <div className="cards">
           {active.data && active.data.active && <ActiveRunCard active={active.data.active} />}
           <BrigadeCard />
@@ -256,6 +258,7 @@ export default function DashboardPage() {
   return (
     <>
       <h1>Мой прогресс</h1>
+      <LoadError resource={active} label="активное прохождение" />
       <div className="cards">
         {active.data && active.data.active && <ActiveRunCard active={active.data.active} />}
         <LevelCard profile={profile.data} />

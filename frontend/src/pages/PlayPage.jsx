@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import LoadError from '../components/LoadError.jsx';
 import ScaleBar from '../components/ScaleBar.jsx';
 import TimerRing from '../components/TimerRing.jsx';
 import { useServerClock } from '../hooks/useServerClock.js';
@@ -115,6 +116,7 @@ export default function PlayPage() {
 function PlayRun({ runId }) {
   const navigate = useNavigate();
   const [run, setRun] = useState(null);
+  const [loadVersion, setLoadVersion] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -137,7 +139,12 @@ function PlayRun({ runId }) {
         if (!cancelled) setError(err.message);
       });
     return () => { cancelled = true; };
-  }, [load]);
+  }, [load, loadVersion]);
+
+  function retryLoad() {
+    setError('');
+    setLoadVersion((version) => version + 1);
+  }
 
   const accept = useCallback((next) => {
     setRun(next);
@@ -208,7 +215,7 @@ function PlayRun({ runId }) {
   if (error && !run) {
     return (
       <>
-        <p className="error">{error}</p>
+        <LoadError resource={{ error, loading: false, reload: retryLoad }} label="прохождение" />
         <Link to="/scenarios">В каталог</Link>
       </>
     );

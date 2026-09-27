@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 
 import GraphSvg from '../components/GraphSvg.jsx';
+import LoadError from '../components/LoadError.jsx';
 import { useLoad } from '../hooks/useLoad.js';
 import { api } from '../lib/api.js';
 import { OUTCOME_TITLES, plural } from '../lib/labels.js';
@@ -58,7 +59,7 @@ export default function ScenarioMapPage() {
       <>
         <p className="muted">Как устроен сценарий</p>
         <section className="card">
-          <p className="error">{graph.error}</p>
+          <LoadError resource={graph} label="карта сценария" />
           <Link className="button" to="/scenarios">
             В каталог
           </Link>
