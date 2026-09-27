@@ -5,6 +5,7 @@
 import { clockOffset } from './timer.js';
 
 const TOKEN_KEY = 'provodnik.token';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 let serverOffsetMs = 0;
 
@@ -55,18 +56,39 @@ async function request(method, path, body, extraHeaders = {}) {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const init = { method, headers };
+  const controller = new AbortController();
+  const init = { method, headers, signal: controller.signal };
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
   let response;
   let text;
+  let timeoutId;
+  let timedOut = false;
   try {
-    response = await fetch(path, init);
-    text = await response.text();
+    // Ограничиваем и ожидание заголовков, и чтение тела. POST здесь не повторяем:
+    // сервер мог применить действие до потери ответа, поэтому состояние нужно перечитать.
+    [response, text] = await Promise.race([
+      (async () => {
+        const received = await fetch(path, init);
+        return [received, await received.text()];
+      })(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+          reject(new Error('Request timed out'));
+        }, REQUEST_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
+    if (timedOut) {
+      throw new ApiError(0, 'network', 'Сервер не ответил вовремя. Обновите страницу, чтобы проверить, сохранено ли действие.');
+    }
     throw new ApiError(0, 'network', 'Сервер недоступен, попробуйте ещё раз через минуту');
+  } finally {
+    clearTimeout(timeoutId);
   }
   let data = null;
   try {

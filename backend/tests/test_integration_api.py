@@ -19,6 +19,36 @@ from tests.test_api_sessions import error_code, play_best_path
 KEY = {"X-API-Key": "demo-integration-key"}
 
 
+def test_pending_events_redeliver_until_ack_and_include_late_lower_id(app, client):
+    def insert_event(event_id):
+        with app.state.session_factory() as db:
+            db.add(
+                OutboxEvent(id=event_id, event_type="run_completed", payload_json={}, created_at=clock.now())
+            )
+            db.commit()
+
+    insert_event(20)
+    path = "/api/integration/events?pending_only=true&limit=1"
+    first = client.get(path, headers=KEY).json()
+    assert [row["id"] for row in first["items"]] == [20]
+    assert first["next_after_id"] == 0
+    assert client.get(path, headers=KEY).json() == first
+    assert client.post("/api/integration/events/ack", headers=KEY, json={"ids": [20]}).json() == {"acked": 1}
+    assert client.get(path, headers=KEY).json() == {"items": [], "next_after_id": 0}
+
+    # Имитируем видимость позднего commit: его id меньше уже обработанного.
+    insert_event(10)
+    insert_event(30)
+    pending = client.get(path, headers=KEY).json()
+    assert [row["id"] for row in pending["items"]] == [10]
+    client.post("/api/integration/events/ack", headers=KEY, json={"ids": [10]})
+    assert [row["id"] for row in client.get(path, headers=KEY).json()["items"]] == [30]
+    archive = client.get("/api/integration/events?after_id=10", headers=KEY).json()
+    assert [row["id"] for row in archive["items"]] == [20, 30]
+    invalid = client.get(path + "&after_id=20", headers=KEY)
+    assert error_code(invalid, 422) == "validation_error"
+
+
 def check_concurrent_employee_creation(app, client):
     body = {"employee_code": "HR-RACE", "display_name": "Проверка HR", "brigade": "М-01"}
     headers = {"X-API-Key": app.state.settings.integration_api_key}

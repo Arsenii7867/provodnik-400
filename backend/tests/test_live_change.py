@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from app import clock
 from app.main import create_app
 from app.scenarios import engine, validator
+from tests.test_api_sessions import choose
 
 CONTENT_DIR = Path(__file__).resolve().parents[2] / "content"
 SCENARIO = "medical_chest_pain"
@@ -70,6 +71,20 @@ def test_timer_change_keeps_recorded_deadline(settings, tmp_path):
             headers=headers,
         )
         assert late.status_code == 200 and late.json()["expired"] is True
+        completed = late.json()
+        for option_id in (
+            "check_and_radio_chief",
+            "ask_history_only",
+            "pa_medic",
+            "brief_medic_full",
+            "announce_calm",
+        ):
+            response = choose(client, headers, completed, option_id)
+            assert response.status_code == 200, response.text
+            completed = response.json()
+        debrief = client.get(f"/api/runs/{view['run_id']}/debrief", headers=headers)
+        assert debrief.status_code == 200, debrief.text
+        assert debrief.json()["steps"][0]["timer_seconds"] == 20
         fresh = client.post("/api/sessions", json={"scenario_id": SCENARIO}, headers=headers).json()
         assert fresh["node"]["timer_seconds"] == 60
 

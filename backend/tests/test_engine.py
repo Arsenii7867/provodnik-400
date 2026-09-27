@@ -225,6 +225,32 @@ def test_late_choice_still_needs_valid_option(medical, content):
     assert state["node"] == "intro" and state["expired_timers"] == 0
 
 
+@pytest.mark.parametrize("expired", [False, True])
+def test_recorded_timer_uses_deadline_after_class_timer_edit(medical, content, expired):
+    scenario = copy.deepcopy(medical)
+    scenario["nodes"]["intro"]["timer"]["seconds_by_class"] = {"business": 12}
+    state = engine.start(scenario, content, T0, "business")
+    scenario["nodes"]["intro"]["timer"]["seconds_by_class"]["business"] = 60
+    if expired:
+        state, step = engine.apply_expiry(scenario, content, state, T0 + timedelta(seconds=13))
+    else:
+        state, step = engine.apply_choice(
+            scenario, content, state, "call_chief_stay", T0 + timedelta(seconds=5)
+        )
+    assert step["timer_seconds"] == 12
+    assert state["steps"][0]["timer_seconds"] == 12
+
+
+def test_recorded_timer_is_absent_when_deadline_was_removed(medical, content):
+    scenario = copy.deepcopy(medical)
+    state = engine.start(scenario, content, T0)
+    # session_service.load_state снимает дедлайн, когда методист удаляет таймер узла.
+    scenario["nodes"]["intro"].pop("timer")
+    state["deadline_at"] = None
+    _, step = engine.apply_choice(scenario, content, state, "call_chief_stay", T0 + timedelta(seconds=25))
+    assert step["timer_seconds"] is None and step["expired"] is False
+
+
 def test_unknown_class_rejected(medical, content):
     with pytest.raises(engine.EngineError) as caught:
         engine.start(medical, content, T0, "premium")
