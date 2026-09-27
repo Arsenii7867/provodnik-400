@@ -2505,6 +2505,15 @@
       },
       "DebriefResponse": {
         "properties": {
+          "history_status": {
+            "type": "string",
+            "enum": [
+              "snapshot",
+              "partial",
+              "legacy"
+            ],
+            "title": "History Status"
+          },
           "run_id": {
             "type": "integer",
             "title": "Run Id"
@@ -2607,6 +2616,7 @@
         },
         "type": "object",
         "required": [
+          "history_status",
           "run_id",
           "scenario_id",
           "title",
@@ -2635,6 +2645,14 @@
       },
       "DebriefStep": {
         "properties": {
+          "history_status": {
+            "type": "string",
+            "enum": [
+              "snapshot",
+              "legacy"
+            ],
+            "title": "History Status"
+          },
           "step_no": {
             "type": "integer",
             "title": "Step No"
@@ -2814,6 +2832,7 @@
         },
         "type": "object",
         "required": [
+          "history_status",
           "step_no",
           "node_id",
           "node_text",

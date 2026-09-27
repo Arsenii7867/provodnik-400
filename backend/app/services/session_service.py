@@ -13,7 +13,7 @@ from app import clock
 from app.errors import ApiError
 from app.models import Employee, RunStep, ScenarioRun
 from app.scenarios import engine
-from app.services import action_log, completion
+from app.services import action_log, completion, debrief
 
 TIME_FIELDS = ("node_entered_at", "deadline_at")
 
@@ -179,6 +179,7 @@ def expire(db, store, run, step_no, now, grace_seconds):
 
 
 def commit_step(db, run, scenario, content, state, step, now):
+    step["teaching_snapshot"] = debrief.capture_teaching(scenario, content, step)
     values = {
         "state_json": serialize_state(state),
         "status": state["status"],
@@ -214,6 +215,10 @@ def commit_step(db, run, scenario, content, state, step, now):
     if finished:
         # итог уже записан условным UPDATE, поэтому история и шаги ниже видят это прохождение завершённым
         completion.complete_run(db, run, scenario, content, values, now)
+        db.flush()
+        db.refresh(run)
+        snapshot = debrief.capture_response(db, content, scenario, run)
+        run.state_json = dict(run.state_json, debrief_snapshot=snapshot)
     try:
         db.commit()
     except IntegrityError:
@@ -223,13 +228,7 @@ def commit_step(db, run, scenario, content, state, step, now):
 
 
 def action_source(scenario, node_id, option_id, expired):
-    """Источник хода в сценарии: вариант диалога, сам узел-событие или ветка истечения."""
-    node = (scenario.get("nodes") or {}).get(node_id) or {}
-    if expired:
-        return (node.get("timer") or {}).get("on_expire") or {}
-    if node.get("type") == "event":
-        return node
-    return next((option for option in node.get("options") or [] if option["id"] == option_id), {})
+    return debrief.action_source(scenario, node_id, option_id, expired)
 
 
 def step_row(run_id, scenario, step, now):
